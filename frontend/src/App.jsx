@@ -2,552 +2,899 @@ import { useState, useEffect, useRef } from "react";
 
 const API = import.meta.env.VITE_API_URL || "https://expenses-tracker-api.YOUR_SUBDOMAIN.workers.dev";
 
-// Dynamic palette — mirrors funfairlabs.com/index.html palette rotation exactly.
-// Three hue ranges, one picked at random on every page load.
-function pickPalette() {
-  const ranges = [[0, 35], [165, 260], [280, 340]];
-  const r = ranges[Math.floor(Math.random() * ranges.length)];
-  const h = Math.floor(Math.random() * (r[1] - r[0]) + r[0]);
-  return {
-    h,
-    pri:  `hsl(${h},78%,42%)`,
-    priD: `hsl(${h},76%,30%)`,
-    priL: `hsl(${h},82%,95%)`,
-    priT: `hsla(${h},78%,42%,0.13)`,
-  };
-}
-
-// Palette is fixed for the lifetime of this module (one load = one palette).
-const PAL = pickPalette();
-
-// Static tokens — match CSS variables in index.html
 const C = {
-  bg:       "#faf9f7",
-  surface:  "#ffffff",
-  surface2: "#f3f1ed",
-  border:   "#e4e0d8",
-  borderS:  "#ccc8be",
-  text:     "#1c1a17",
-  text2:    "#4a4540",
-  text3:    "#908a80",
-  radius:   "10px",
-  radiusLg: "18px",
-  shadow:   "0 1px 4px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.05)",
-  shadowMd: "0 6px 24px rgba(0,0,0,.09)",
-  // Dynamic palette slots — resolved once per load
-  pri:  PAL.pri,
-  priD: PAL.priD,
-  priL: PAL.priL,
-  priT: PAL.priT,
+  bg:     "#f5f4f0", surf:   "#ffffff", surf2:  "#f0ede6", surf3:  "#e8e4db",
+  border: "#e2ddd4", text:   "#1a1916", muted:  "#9a9690",
+  accent: "#f97316", green:  "#16a34a", red:    "#dc2626", blue:   "#6366f1",
+  text2:  "#4a4740",
 };
 
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body,#root{min-height:100vh}
+  body{background:${C.bg};color:${C.text};font-family:'DM Sans',sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+  .app{min-height:100vh;display:flex;flex-direction:column}
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  .header{background:${C.surf};border-bottom:1px solid ${C.border};padding:14px 28px;
+    display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:50;
+    box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+  .logo{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:${C.text};letter-spacing:-0.02em}
+  .logo span{color:${C.accent}}
+  .header-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .avatar{width:28px;height:28px;border-radius:50%;border:2px solid ${C.border}}
 
-  body {
-    font-family: Arial, Helvetica, sans-serif;
-    background: ${C.bg};
-    color: ${C.text};
-    min-height: 100vh;
-    font-size: 16px;
-    line-height: 1.6;
-    -webkit-font-smoothing: antialiased;
-  }
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:8px 16px;border-radius:8px;
+    border:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;
+    transition:all 0.15s}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn-accent{background:${C.accent};color:#fff}
+  .btn-accent:hover:not(:disabled){background:#ea6a05}
+  .btn-ghost{background:transparent;color:${C.text2};border:1.5px solid ${C.border}}
+  .btn-ghost:hover:not(:disabled){border-color:${C.accent};color:${C.accent};background:rgba(249,115,22,0.05)}
+  .btn-danger{background:transparent;color:${C.red};border:1px solid transparent;padding:5px 9px;font-size:11px;border-radius:6px}
+  .btn-danger:hover{border-color:${C.red};background:rgba(220,38,38,0.05)}
+  .btn-sm{padding:6px 12px;font-size:12px}
 
-  a { color: inherit; text-decoration: none; }
+  .main{flex:1;padding:28px;max-width:1100px;margin:0 auto;width:100%}
+  .slbl{font-family:'Syne',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;
+    color:${C.accent};font-weight:700;margin-bottom:10px}
 
-  /* ── NAV — matches site nav exactly ── */
-  nav {
-    position: sticky; top: 0; z-index: 200;
-    background: rgba(250,249,247,0.92);
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    border-bottom: 1px solid ${C.border};
-    border-top: 3px solid ${C.pri};
-  }
-  .nav-inner {
-    max-width: 1080px; margin: 0 auto;
-    display: flex; align-items: center;
-    padding: 0 32px; height: 58px; gap: 28px;
-  }
-  .nav-logo {
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 18px; font-weight: 700;
-    letter-spacing: -0.01em;
-    color: ${C.text}; flex-shrink: 0;
-    display: flex; align-items: center; gap: 9px;
-  }
-  .nav-logo em { color: ${C.pri}; font-style: normal; }
-  .nav-spacer { flex: 1; }
+  .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:${C.bg};background-image:radial-gradient(ellipse at 30% 20%,rgba(249,115,22,0.08) 0%,transparent 60%)}
+  .login-card{background:${C.surf};border:1.5px solid ${C.border};border-radius:20px;
+    padding:48px;width:420px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.08)}
+  .login-title{font-family:'Syne',sans-serif;font-size:30px;font-weight:800;color:${C.text};
+    letter-spacing:-0.03em;margin-bottom:8px}
+  .login-title span{color:${C.accent}}
+  .login-sub{color:${C.muted};font-size:13px;line-height:1.7;margin-bottom:32px}
+  .auth-btn{width:100%;padding:13px 18px;border-radius:10px;border:1.5px solid ${C.border};
+    background:${C.surf};color:${C.text};font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;transition:all 0.15s;text-decoration:none}
+  .auth-btn:hover{border-color:${C.accent};background:rgba(249,115,22,0.04);transform:translateY(-1px);
+    box-shadow:0 4px 12px rgba(249,115,22,0.12)}
+  .auth-note{font-size:11px;color:${C.muted};margin-top:16px;line-height:1.7}
 
-  /* ── LAYOUT ── */
-  .app {
-    max-width: 1080px;
-    margin: 0 auto;
-    padding: 48px 32px;
-  }
+  .tabs{display:flex;margin-bottom:24px;border-bottom:2px solid ${C.border}}
+  .tab{padding:10px 20px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;
+    border-bottom:2px solid transparent;margin-bottom:-2px;color:${C.muted};transition:all 0.15s}
+  .tab.on{color:${C.accent};border-bottom-color:${C.accent}}
+  .tab:hover:not(.on){color:${C.text}}
+  .badge{display:inline-flex;align-items:center;justify-content:center;background:${C.accent};
+    color:#fff;border-radius:10px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:6px}
 
-  /* ── HERO — mirrors site hero section ── */
-  .hero {
-    text-align: center;
-    padding: 64px 0 48px;
-  }
-  .hero-eyebrow {
-    display: inline-flex; align-items: center; gap: 8px;
-    background: ${C.priL};
-    color: ${C.pri};
-    font-size: 13px; font-weight: 600;
-    padding: 5px 13px;
-    border-radius: 20px;
-    border: 1px solid hsla(24, 78%, 42%, 0.25);
-    margin-bottom: 20px;
-  }
-  .hero h1 {
-    font-size: clamp(28px, 5vw, 48px);
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    color: ${C.text};
-    line-height: 1.1;
-    margin-bottom: 14px;
-  }
-  .hero h1 em { color: ${C.pri}; font-style: normal; }
-  .hero p {
-    font-size: 17px;
-    color: ${C.text2};
-    max-width: 480px;
-    margin: 0 auto 32px;
-    line-height: 1.6;
-  }
-  .hero-actions {
-    display: flex; align-items: center; justify-content: center; gap: 12px;
-    flex-wrap: wrap;
-  }
+  .pending-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:16px}
+  .pending-card{background:${C.surf};border:1.5px solid ${C.border};border-radius:16px;
+    overflow:hidden;transition:all 0.2s;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.04)}
+  .pending-card:hover{border-color:${C.accent};box-shadow:0 8px 24px rgba(249,115,22,0.12);transform:translateY(-2px)}
+  .pending-thumb{width:100%;height:140px;object-fit:cover;background:${C.surf2};display:block}
+  .pending-thumb-ph{width:100%;height:140px;background:${C.surf2};display:flex;align-items:center;
+    justify-content:center;font-size:32px;opacity:.3}
+  .pending-body{padding:14px 16px}
+  .pending-merchant{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;margin-bottom:4px;color:${C.text}}
+  .pending-meta{font-size:11px;color:${C.muted};line-height:1.7}
+  .pending-amount{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:${C.accent};margin-top:8px}
 
-  /* ── CARDS — matches .product-card on site ── */
-  .card {
-    background: ${C.surface};
-    border: 1px solid ${C.border};
-    border-radius: ${C.radiusLg};
-    box-shadow: ${C.shadow};
-    padding: 28px;
-    transition: box-shadow .2s, border-color .2s, transform .15s;
-  }
-  .card:hover {
-    box-shadow: ${C.shadowMd};
-    border-color: ${C.borderS};
-    transform: translateY(-2px);
-  }
-  .card-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
-    margin-top: 32px;
-  }
-  .card-icon {
-    width: 44px; height: 44px;
-    background: ${C.priL};
-    color: ${C.pri};
-    border-radius: 12px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 20px;
-    margin-bottom: 16px;
-  }
-  .card h3 {
-    font-size: 16px; font-weight: 700;
-    color: ${C.text};
-    margin-bottom: 6px;
-    letter-spacing: -0.01em;
-  }
-  .card p {
-    font-size: 14px; color: ${C.text2}; line-height: 1.55;
-  }
+  .trip-section{margin-bottom:32px}
+  .trip-hd{display:flex;align-items:center;gap:10px;padding-bottom:12px;
+    border-bottom:2px solid ${C.border};margin-bottom:12px}
+  .trip-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.02em}
+  .trip-year-tag{font-size:11px;font-weight:600;color:${C.muted};background:${C.surf2};
+    border:1.5px solid ${C.border};border-radius:6px;padding:3px 9px;font-family:'DM Mono',monospace}
+  .trip-total{margin-left:auto;font-size:12px;color:${C.muted}}
+  .trip-total strong{color:${C.accent};font-size:16px;font-family:'Syne',sans-serif}
+  .col-hd{display:grid;grid-template-columns:44px 1fr 110px 100px 80px 80px 44px;
+    gap:10px;padding:0 14px;font-size:10px;text-transform:uppercase;
+    letter-spacing:.12em;color:${C.muted};margin-bottom:6px;font-weight:600}
+  .exp-row{display:grid;grid-template-columns:44px 1fr 110px 100px 80px 80px 44px;
+    gap:10px;padding:11px 14px;background:${C.surf};border:1.5px solid ${C.border};
+    border-radius:12px;align-items:center;margin-bottom:6px;cursor:pointer;transition:all 0.15s;
+    box-shadow:0 1px 3px rgba(0,0,0,0.03)}
+  .exp-row:hover{border-color:${C.accent};box-shadow:0 4px 12px rgba(249,115,22,0.08)}
+  .thumb{width:40px;height:32px;object-fit:cover;border-radius:6px;border:1.5px solid ${C.border}}
+  .thumb-ph{width:40px;height:32px;background:${C.surf2};border:1.5px solid ${C.border};
+    border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;opacity:.5}
 
-  /* ── SECTION LABEL ── */
-  .section-label {
-    font-size: 11px; font-weight: 700;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    color: ${C.text3};
-    margin-bottom: 8px;
-  }
-  .section-title {
-    font-size: 22px; font-weight: 700;
-    letter-spacing: -0.02em; color: ${C.text};
-    margin-bottom: 4px;
-  }
+  .tag{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;
+    font-size:10px;font-weight:600;letter-spacing:.04em;white-space:nowrap}
+  .tg{background:rgba(22,163,74,.1);color:${C.green};border:1.5px solid rgba(22,163,74,.2)}
+  .tb{background:rgba(99,102,241,.1);color:${C.blue};border:1.5px solid rgba(99,102,241,.2)}
+  .ta{background:rgba(249,115,22,.1);color:${C.accent};border:1.5px solid rgba(249,115,22,.2)}
+  .tr{background:rgba(220,38,38,.08);color:${C.red};border:1.5px solid rgba(220,38,38,.15)}
+  .tn{background:${C.surf2};color:${C.muted};border:1.5px solid ${C.border}}
 
-  /* ── BUTTONS — matches site .btn / .btn-primary ── */
-  .btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 14px; font-weight: 600;
-    padding: 10px 20px;
-    border-radius: ${C.radius};
-    border: none; cursor: pointer;
-    transition: all .2s;
-    text-decoration: none;
-  }
-  .btn-primary {
-    background: ${C.pri};
-    color: #fff;
-  }
-  .btn-primary:hover {
-    background: ${C.priD};
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px hsla(24, 78%, 42%, 0.35);
-  }
-  .btn-ghost {
-    background: transparent;
-    color: ${C.text2};
-    border: 1px solid ${C.border};
-  }
-  .btn-ghost:hover {
-    border-color: ${C.borderS};
-    background: ${C.surface2};
-  }
+  .field{margin-bottom:13px}
+  .lbl{display:block;font-size:11px;color:${C.muted};text-transform:uppercase;
+    letter-spacing:.08em;margin-bottom:5px;font-weight:600}
+  .inp{width:100%;background:${C.surf};border:1.5px solid ${C.border};border-radius:8px;
+    padding:9px 12px;color:${C.text};font-family:'DM Sans',sans-serif;font-size:13px;
+    outline:none;transition:border-color 0.15s}
+  .inp:focus{border-color:${C.accent};box-shadow:0 0 0 3px rgba(249,115,22,0.1)}
+  select.inp{cursor:pointer;background-color:${C.surf}}
+  textarea.inp{resize:vertical;min-height:60px;line-height:1.5}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
+  hr.dv{border:none;border-top:1.5px solid ${C.border};margin:18px 0}
 
-  /* ── FORM ELEMENTS ── */
-  .form-section {
-    background: ${C.surface};
-    border: 1px solid ${C.border};
-    border-radius: ${C.radiusLg};
-    box-shadow: ${C.shadow};
-    padding: 28px;
-    margin-top: 24px;
-  }
-  .form-group { margin-bottom: 18px; }
-  .form-label {
-    display: block;
-    font-size: 13px; font-weight: 600; color: ${C.text2};
-    margin-bottom: 6px;
-  }
-  .inp {
-    width: 100%;
-    padding: 10px 14px;
-    border-radius: ${C.radius};
-    border: 1px solid ${C.border};
-    background: ${C.surface2};
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 15px; color: ${C.text};
-    transition: border-color .15s, box-shadow .15s;
-    outline: none;
-  }
-  .inp:focus {
-    border-color: ${C.pri};
-    background: ${C.surface};
-    box-shadow: 0 0 0 3px ${C.priT};
-  }
-  .inp::placeholder { color: ${C.text3}; }
+  .overlay{position:fixed;inset:0;background:rgba(26,25,22,0.6);z-index:200;
+    display:flex;align-items:flex-start;justify-content:center;
+    padding:24px 16px 60px;backdrop-filter:blur(8px);overflow-y:auto}
+  .modal{background:${C.surf};border:1.5px solid ${C.border};border-radius:20px;
+    padding:28px 32px;width:100%;max-width:760px;box-shadow:0 24px 64px rgba(0,0,0,0.12)}
+  .modal-title{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;
+    letter-spacing:-0.02em;margin-bottom:4px}
+  .modal-sub{font-size:12px;color:${C.muted};margin-bottom:20px}
+  .preview-img{width:100%;max-height:200px;object-fit:contain;border-radius:12px;
+    border:1.5px solid ${C.border};margin-bottom:18px;background:${C.surf2};display:block}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}
 
-  /* ── TABLE ── */
-  .table-wrap {
-    background: ${C.surface};
-    border: 1px solid ${C.border};
-    border-radius: ${C.radiusLg};
-    box-shadow: ${C.shadow};
-    overflow: hidden;
-    margin-top: 24px;
-  }
-  .table-header {
-    padding: 16px 24px;
-    border-bottom: 1px solid ${C.border};
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 12px;
-  }
-  table { width: 100%; border-collapse: collapse; }
-  th {
-    text-align: left;
-    font-size: 11px; font-weight: 700;
-    letter-spacing: 0.07em; text-transform: uppercase;
-    color: ${C.text3};
-    padding: 12px 16px;
-    border-bottom: 1px solid ${C.border};
-    background: ${C.surface2};
-  }
-  td {
-    padding: 14px 16px;
-    font-size: 14px; color: ${C.text};
-    border-bottom: 1px solid ${C.border};
-    vertical-align: middle;
-  }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: ${C.surface2}; }
+  .choice-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:10px 0}
+  .choice{padding:12px 8px;border-radius:10px;border:1.5px solid ${C.border};background:${C.surf};
+    color:${C.text};font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;
+    cursor:pointer;text-align:center;transition:all 0.15s}
+  .choice:hover{border-color:${C.accent};background:rgba(249,115,22,0.04)}
+  .choice.on{border-color:${C.accent};background:rgba(249,115,22,0.08);color:${C.accent}}
 
-  /* ── BADGE ── */
-  .badge {
-    display: inline-flex; align-items: center;
-    font-size: 12px; font-weight: 600;
-    padding: 3px 9px; border-radius: 20px;
-  }
-  .badge-green { background: #d1fae5; color: #065f46; }
-  .badge-red   { background: #fee2e2; color: #991b1b; }
-  .badge-pri   { background: ${C.priL}; color: ${C.priD}; }
+  .dtable{width:100%;border-collapse:collapse;font-size:12px}
+  .dtable th{text-align:left;padding:6px 8px;font-size:10px;color:${C.muted};
+    text-transform:uppercase;letter-spacing:.1em;border-bottom:1.5px solid ${C.border};font-weight:600}
+  .dtable td{padding:8px 8px;border-bottom:1px solid ${C.border};vertical-align:middle}
+  .dtable tr:last-child td{border-bottom:none}
+  .dtable .amt{text-align:right;color:${C.accent};font-weight:600;font-family:'DM Mono',monospace}
 
-  /* ── DIVIDER ── */
-  .divider { height: 1px; background: ${C.border}; margin: 32px 0; }
+  .summary{background:${C.surf};border:1.5px solid ${C.border};border-radius:16px;
+    padding:16px 24px;display:flex;gap:32px;margin-bottom:24px;align-items:center;flex-wrap:wrap;
+    box-shadow:0 2px 8px rgba(0,0,0,0.04)}
+  .stat .v{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:${C.accent};display:block;letter-spacing:-0.02em}
+  .stat .l{font-size:10px;color:${C.muted};text-transform:uppercase;letter-spacing:.1em;font-weight:600}
 
-  /* ── MODAL ── */
-  .modal-overlay {
-    position: fixed; inset: 0;
-    background: rgba(28,26,23,.45);
-    backdrop-filter: blur(4px);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 500; padding: 24px;
-  }
-  .modal {
-    background: ${C.surface};
-    border-radius: ${C.radiusLg};
-    box-shadow: 0 20px 60px rgba(0,0,0,.2);
-    padding: 32px;
-    width: 100%; max-width: 480px;
-    border: 1px solid ${C.border};
-  }
-  .modal h2 {
-    font-size: 20px; font-weight: 700;
-    color: ${C.text}; margin-bottom: 6px;
-  }
-  .modal-sub {
-    font-size: 14px; color: ${C.text2}; margin-bottom: 24px;
-  }
-  .modal-actions {
-    display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;
-  }
-
-  /* ── FOOTER ── */
-  footer {
-    margin-top: 64px;
-    padding: 24px 0;
-    border-top: 1px solid ${C.border};
-    text-align: center;
-    font-size: 13px; color: ${C.text3};
-  }
-  footer a { color: ${C.pri}; }
-
-  /* ── STATS ROW ── */
-  .stats-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 16px;
-    margin: 24px 0;
-  }
-  .stat-card {
-    background: ${C.surface};
-    border: 1px solid ${C.border};
-    border-radius: ${C.radius};
-    padding: 18px 20px;
-    box-shadow: ${C.shadow};
-  }
-  .stat-label {
-    font-size: 12px; font-weight: 600;
-    color: ${C.text3}; text-transform: uppercase;
-    letter-spacing: 0.06em; margin-bottom: 6px;
-  }
-  .stat-value {
-    font-size: 24px; font-weight: 700;
-    color: ${C.text}; letter-spacing: -0.02em;
-  }
-  .stat-value em { color: ${C.pri}; font-style: normal; }
+  .spinner{width:14px;height:14px;border:2px solid rgba(249,115,22,.25);
+    border-top-color:${C.accent};border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .empty{text-align:center;padding:56px 20px;color:${C.muted}}
+  .empty-ico{font-size:40px;opacity:.3;margin-bottom:14px}
+  .toast{position:fixed;top:70px;right:22px;background:${C.surf};border:1.5px solid ${C.border};
+    border-left:4px solid ${C.accent};padding:11px 18px;border-radius:10px;font-size:13px;
+    z-index:400;animation:slideIn .2s ease;max-width:300px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.1)}
+  @keyframes slideIn{from{transform:translateX(14px);opacity:0}to{transform:translateX(0);opacity:1}}
+  .sync-dot{width:7px;height:7px;border-radius:50%;background:${C.green};flex-shrink:0}
+  .sync-dot.busy{background:${C.accent};animation:pulse .9s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .path-preview{font-size:11px;color:${C.muted};margin-top:-8px;margin-bottom:14px;
+    padding:7px 12px;background:${C.surf2};border-radius:8px;border:1.5px solid ${C.border};
+    font-family:'DM Mono',monospace}
+  .path-preview span{color:${C.text};font-weight:500}
+  .ai-flag{font-size:11px;color:${C.muted};background:${C.surf2};border:1.5px solid ${C.border};
+    border-radius:8px;padding:4px 10px;display:inline-flex;align-items:center;gap:5px;margin-bottom:16px}
+  .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin-bottom:16px}
+  .drow{padding:6px 0;border-bottom:1px solid ${C.border}}
+  .dkey{font-size:10px;color:${C.muted};text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px;font-weight:600}
+  .dval{font-size:13px;color:${C.text}}
 `;
 
-// Sample data
-const SAMPLE_EXPENSES = [
-  { id: 1, description: "Tesco Weekly Shop",    category: "Groceries", amount: 87.43, date: "2025-03-10", status: "approved" },
-  { id: 2, description: "Northern Rail Return", category: "Travel",    amount: 34.20, date: "2025-03-11", status: "pending"  },
-  { id: 3, description: "Broadband Bill",        category: "Utilities", amount: 42.99, date: "2025-03-12", status: "approved" },
-  { id: 4, description: "Greggs Meal Deal",      category: "Food",      amount: 4.75,  date: "2025-03-13", status: "pending"  },
-];
+const fmt = (n, cur = "GBP") => {
+  if (n === "" || n == null) return "—";
+  const s = { GBP:"£",USD:"$",EUR:"€",HKD:"HK$",SGD:"S$",AUD:"A$",JPY:"¥",CHF:"CHF ",AED:"AED ",THB:"฿" };
+  return `${s[cur]||cur+" "}${parseFloat(n).toFixed(2)}`;
+};
+const fmtDate = d => {
+  try { return new Date(d).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); }
+  catch { return d||"—"; }
+};
+const payIcon = m => {
+  if (!m) return "💳";
+  const l = m.toLowerCase();
+  if (l.includes("cash")) return "💵";
+  if (l.includes("wechat")||l.includes("alipay")) return "📱";
+  return "💳";
+};
 
-function EmailModal({ onClose }) {
-  const [email, setEmail] = useState("");
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-
-  function handleSend() {
-    if (!email) return;
-    setSending(true);
-    setTimeout(() => { setSending(false); setSent(true); }, 1200);
-  }
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <h2>Send Expense Report</h2>
-        <p className="modal-sub">We'll send a summary of all expenses to the address below.</p>
-        <div className="form-group">
-          <label className="form-label">Email address</label>
-          <input
-            className="inp"
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-          />
-        </div>
-        {sent && (
-          <p style={{ fontSize: 14, color: C.pri, fontWeight: 600 }}>
-            ✓ Report sent to {email}
-          </p>
-        )}
-        <div className="modal-actions">
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSend} disabled={sending || sent}>
-            {sending ? "Sending…" : sent ? "Sent ✓" : "Send Report"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+const CATS  = ["meals","transport","accommodation","entertainment","supplies","telecoms","other"];
+const CURS  = ["GBP","EUR","USD","HKD","SGD","AUD","JPY","CHF","AED","THB"];
 
 export default function App() {
-  const [search, setSearch]       = useState("");
-  const [emailModal, setEmailModal] = useState(false);
-  const [expenses]                 = useState(SAMPLE_EXPENSES);
+  const [user,       setUser]       = useState(undefined);
+  const [pending,    setPending]    = useState([]);
+  const [expenses,   setExpenses]   = useState([]);
+  const [tab,        setTab]        = useState("pending");
+  const [triage,     setTriage]     = useState(null);
+  const [detail,     setDetail]     = useState(null);
+  const [emailModal, setEmailModal] = useState(null);
+  const [emailTo,    setEmailTo]    = useState("");
+  const [sending,    setSending]    = useState(false);
+  const [syncing,    setSyncing]    = useState(false);
+  const [toast,      setToast]      = useState(null);
+  const pollRef = useRef();
 
-  const filtered = expenses.filter(e =>
-    e.description.toLowerCase().includes(search.toLowerCase()) ||
-    e.category.toLowerCase().includes(search.toLowerCase())
+  useEffect(() => {
+    fetch(`${API}/auth/me`, { credentials:"include" })
+      .then(r=>r.json()).then(d=>{ if(d.error) setUser(null); else setUser(d); })
+      .catch(()=>setUser(null));
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    fetch(`${API}/api/subscribe`, { method:"POST", credentials:"include" }).catch(()=>{});
+    loadData();
+    pollRef.current = setInterval(loadPending, 30000);
+    return () => clearInterval(pollRef.current);
+  }, [user]);
+
+  const loadPending = async () => {
+    try {
+      const r = await fetch(`${API}/api/pending`, { credentials:"include" });
+      const d = await r.json();
+      if (Array.isArray(d)) setPending(d.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)));
+    } catch {}
+  };
+
+  const loadData = async () => {
+    await loadPending();
+    try {
+      const r = await fetch(`${API}/api/expenses`, { credentials:"include" });
+      const d = await r.json();
+      if (Array.isArray(d)) setExpenses(d);
+    } catch {}
+  };
+
+  const toast$ = msg => { setToast(msg); setTimeout(()=>setToast(null), 3500); };
+
+  // ── Triage form ───────────────────────────────────────────────────────────
+
+  const blankForm = r => {
+    const ex = r?.extracted || {};
+    return {
+      tripName:"", year:String(new Date().getFullYear()),
+      merchant:        ex.merchant         || r?.merchant         || "",
+      date:            ex.date             || r?.date             || "",
+      time:            ex.time             || r?.time             || "",
+      amount:          ex.total_amount     || r?.amount           || "",
+      currency:        ex.currency         || r?.currency         || "GBP",
+      category:        ex.category         || r?.category         || "other",
+      merchant_address:ex.merchant_address || "",
+      merchant_phone:  ex.merchant_phone   || ex.merchant_website || "",
+      customer_name:   ex.customer_name    || "",
+      customer_address:ex.customer_address || "",
+      nationality:     ex.nationality      || "",
+      room_number:     ex.room_number      || "",
+      check_in:        ex.check_in         || "",
+      check_out:       ex.check_out        || "",
+      payment_method:  ex.payment_method   || "",
+      card_last4:      ex.card_last4       || "",
+      subtotal:        ex.subtotal         || "",
+      tip:             ex.tip              || "",
+      discount:        ex.discount         || "",
+      taxes:           ex.taxes            || [],
+      items:           ex.items            || [],
+      receipt_number:  ex.receipt_number   || "",
+      order_number:    ex.order_number     || "",
+      notes:           ex.notes            || "",
+      personal:"none", personalPct:50,
+    };
+  };
+
+  const [form, setForm] = useState({});
+  const f = (k,v) => setForm(p=>({...p,[k]:v}));
+  const openTriage = r => { setTriage(r); setForm(blankForm(r)); };
+
+  const submitTriage = async () => {
+    if (!form.tripName.trim()) { toast$("Please enter a trip name"); return; }
+    setSyncing(true);
+    try {
+      const r = await fetch(`${API}/api/assign`, {
+        method:"POST", credentials:"include",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ fileId:triage.id, ...form, extracted:triage.extracted }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setPending(p=>p.filter(x=>x.id!==triage.id));
+        setExpenses(p=>[...p, d.expense]);
+        setTriage(null);
+        toast$(`✓ Filed → ${form.year}/${form.tripName}`);
+        setTab("expenses");
+      } else toast$(d.error||"Something went wrong");
+    } catch { toast$("Network error"); }
+    finally { setSyncing(false); }
+  };
+
+  const sendEmail = async () => {
+    if (!emailTo.trim()) { toast$("Enter a recipient email"); return; }
+    setSending(true);
+    try {
+      const r = await fetch(`${API}/api/email-trip`, {
+        method:"POST", credentials:"include",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ toEmail:emailTo.trim(), ...emailModal }),
+      });
+      const d = await r.json();
+      if (d.ok) { toast$(`✉️ Sent to ${emailTo}`); setEmailModal(null); setEmailTo(""); }
+      else toast$(d.message||"Send failed");
+    } catch { toast$("Network error"); }
+    finally { setSending(false); }
+  };
+
+  const exportCSV = () => {
+    if (!expenses.length) { toast$("No expenses yet"); return; }
+    const hdr = ["Filename","Year","Trip","Date","Time","Merchant","Merchant Address",
+      "Merchant Phone","Category","Customer Name","Customer Address","Nationality",
+      "Room/Ref","Check-in","Check-out","Payment Method","Card Last 4",
+      "Receipt No.","Order No.","Subtotal","Taxes Total","Tip","Discount",
+      "Total Amount","Currency","Personal %","Work Amount","Drive Link","Notes"];
+    const rows = [hdr];
+    expenses.forEach(e => {
+      const amt      = parseFloat(e.amount)||0;
+      const taxTotal = (e.taxes||[]).reduce((s,t)=>s+(parseFloat(t.amount)||0),0);
+      const work     = +(amt*(100-(e.personalPct||0))/100).toFixed(2);
+      rows.push([
+        e.filename, e.year, e.tripName, e.date, e.time||"", e.merchant,
+        e.merchant_address||"", e.merchant_phone||"", e.category||"",
+        e.customer_name||"", e.customer_address||"", e.nationality||"",
+        e.room_number||"", e.check_in||"", e.check_out||"",
+        e.payment_method||"", e.card_last4||"",
+        e.receipt_number||"", e.order_number||"",
+        e.subtotal||"", taxTotal.toFixed(2), e.tip||"", e.discount||"",
+        amt, e.currency||"GBP", e.personalPct||0, work,
+        e.driveLink||"", e.notes||"",
+      ]);
+    });
+    const csv  = rows.map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv],{type:"text/csv"});
+    const a    = document.createElement("a");
+    a.href     = URL.createObjectURL(blob);
+    a.download = `expenses_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    toast$("CSV exported");
+  };
+
+  const grouped = {};
+  expenses.forEach(e => {
+    const k = `${e.year||""}__${e.tripName||"Unassigned"}`;
+    if (!grouped[k]) grouped[k] = { year:e.year, name:e.tripName||"Unassigned", items:[] };
+    grouped[k].items.push(e);
+  });
+  const totalWork = expenses.reduce((s,e)=>s+(parseFloat(e.amount)||0)*(100-(e.personalPct||0))/100, 0);
+
+  // ── Auth screens ──────────────────────────────────────────────────────────
+
+  if (user === undefined) return (
+    <><style>{css}</style>
+    <div className="login-wrap"><div style={{color:C.muted}}>Loading…</div></div></>
   );
 
-  const total    = expenses.reduce((s, e) => s + e.amount, 0);
-  const approved = expenses.filter(e => e.status === "approved").reduce((s, e) => s + e.amount, 0);
-  const pending  = expenses.filter(e => e.status === "pending").length;
+  if (!user) return (
+    <><style>{css}</style>
+    <div className="login-wrap">
+      <div className="login-card">
+        <div style={{fontSize:42,marginBottom:16}}>🧾</div>
+        <div className="login-title">Expend<span>-a-</span>Bot</div>
+        <div className="login-sub">Scan with your phone → Drive → AI extracts everything<br/>Triage, file by trip, email to accounts</div>
+        <a className="auth-btn" href={`${API}/auth/google`}>
+          <svg width="18" height="18" viewBox="0 0 24 24">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+          Continue with Google
+        </a>
+        <div className="auth-note">Needs Drive (move receipts) and Gmail (send expenses).<br/>Drop receipts into <strong>/receipts/Pending</strong> on your phone.</div>
+      </div>
+    </div></>
+  );
 
+  // ── Main ──────────────────────────────────────────────────────────────────
 
   return (
-    <>
-      <style>{css}</style>
+    <><style>{css}</style>
+    <div className="app">
 
-      {/* NAV */}
-      <nav>
-        <div className="nav-inner">
-          <div className="nav-logo">
-            <span>FunFair<em>Labs</em></span>
+      <div className="header">
+        <div className="logo">Expend<span>-a-</span>Bot</div>
+        <div className="header-right">
+          <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:C.muted}}>
+            <div className={`sync-dot${syncing?" busy":""}`}/>
+            {syncing?"Syncing…":"Live"}
           </div>
-          <span style={{ fontSize: 14, color: C.text3, fontWeight: 500 }}>Expenses</span>
-          <div className="nav-spacer" />
-          <button className="btn btn-primary" style={{ padding: "7px 15px", fontSize: 13 }} onClick={() => setEmailModal(true)}>
-            Send Report ✉
-          </button>
+          <img className="avatar" src={user.avatar} alt=""/>
+          <span style={{fontSize:12,color:C.muted}}>{user.name}</span>
+          <a href={`${API}/auth/logout`} className="btn btn-ghost btn-sm">Sign out</a>
+          <button className="btn btn-accent btn-sm" onClick={exportCSV}>↓ CSV</button>
         </div>
-      </nav>
-
-      <div className="app">
-
-        {/* HERO */}
-        <div className="hero">
-          <div className="hero-eyebrow">💸 Family Expense Tracker</div>
-          <h1>Your <em>expenses</em>,<br />beautifully organised</h1>
-          <p>Track receipts, manage budgets, and send reports — all in one place.</p>
-          <div className="hero-actions">
-            <button className="btn btn-primary">+ Add Expense</button>
-            <button className="btn btn-ghost" onClick={() => setEmailModal(true)}>Send Report</button>
-          </div>
-        </div>
-
-        {/* STATS */}
-        <div className="stats-row">
-          <div className="stat-card">
-            <div className="stat-label">Total Spent</div>
-            <div className="stat-value"><em>£{total.toFixed(2)}</em></div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Approved</div>
-            <div className="stat-value">£{approved.toFixed(2)}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Pending Items</div>
-            <div className="stat-value">{pending}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">This Month</div>
-            <div className="stat-value">{expenses.length}</div>
-          </div>
-        </div>
-
-        {/* EXPENSE TABLE */}
-        <div className="table-wrap">
-          <div className="table-header">
-            <div>
-              <div className="section-label">Expenses</div>
-              <div className="section-title">Recent transactions</div>
-            </div>
-            <input
-              className="inp"
-              style={{ width: 220 }}
-              placeholder="Search…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th>Category</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th style={{ textAlign: "right" }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ textAlign: "center", color: C.text3, padding: 32 }}>
-                    No expenses found.
-                  </td>
-                </tr>
-              )}
-              {filtered.map(e => (
-                <tr key={e.id}>
-                  <td style={{ fontWeight: 500 }}>{e.description}</td>
-                  <td>
-                    <span className="badge badge-pri">{e.category}</span>
-                  </td>
-                  <td style={{ color: C.text2 }}>{e.date}</td>
-                  <td>
-                    <span className={`badge ${e.status === "approved" ? "badge-green" : "badge-red"}`}>
-                      {e.status === "approved" ? "✓ Approved" : "⏳ Pending"}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
-                    £{e.amount.toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="divider" />
-
-        {/* FEATURE CARDS — mirrors site product cards */}
-        <div>
-          <div className="section-label">Features</div>
-          <div className="section-title">Everything you need</div>
-          <div className="card-grid">
-            {[
-              { icon: "📸", title: "Receipt Capture",    desc: "Photograph receipts on the go and have them auto-categorised instantly." },
-              { icon: "📊", title: "Spend Reports",      desc: "Export clean summaries by category, date range, or family member." },
-              { icon: "✉️",  title: "Email Delivery",    desc: "Send polished expense reports directly to your inbox or accountant." },
-              { icon: "🏷️", title: "Smart Categories",   desc: "AI-powered categorisation that learns your spending patterns over time." },
-            ].map(f => (
-              <div className="card" key={f.title}>
-                <div className="card-icon">{f.icon}</div>
-                <h3>{f.title}</h3>
-                <p>{f.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* FOOTER */}
-        <footer>
-          <p>© 2025 <a href="https://funfairlabs.com">FunFairLabs</a> — Software products for modern family life</p>
-        </footer>
       </div>
 
-      {emailModal && <EmailModal onClose={() => setEmailModal(false)} />}
+      <div className="main">
+        {expenses.length > 0 && (
+          <div className="summary">
+            <div className="stat"><span className="v">{expenses.length}</span><span className="l">Receipts</span></div>
+            <div className="stat"><span className="v">{Object.keys(grouped).length}</span><span className="l">Trips</span></div>
+            <div className="stat"><span className="v">£{totalWork.toFixed(2)}</span><span className="l">Work Total</span></div>
+            <button className="btn btn-accent" style={{marginLeft:"auto"}} onClick={exportCSV}>↓ Export CSV</button>
+          </div>
+        )}
+
+        <div className="tabs">
+          <div className={`tab${tab==="pending"?" on":""}`} onClick={()=>setTab("pending")}>
+            📥 Inbox{pending.length>0&&<span className="badge">{pending.length}</span>}
+          </div>
+          <div className={`tab${tab==="expenses"?" on":""}`} onClick={()=>setTab("expenses")}>
+            📋 Expenses ({expenses.length})
+          </div>
+        </div>
+
+        {/* ── Inbox ── */}
+        {tab==="pending" && (
+          pending.length===0
+            ? <div className="empty">
+                <div className="empty-ico">📥</div>
+                <div style={{fontWeight:500,marginBottom:8}}>Nothing to triage</div>
+                <div style={{fontSize:12,color:C.muted,lineHeight:1.7}}>
+                  Save a receipt to <strong style={{color:C.text}}>Google Drive → receipts → Pending</strong><br/>
+                  It'll appear here within seconds.
+                </div>
+              </div>
+            : <div className="pending-grid">
+                {pending.map(r => {
+                  const ex = r.extracted||{};
+                  const taxNames = (ex.taxes||[]).map(t=>t.name).filter(Boolean).join(", ");
+                  return (
+                    <div className="pending-card" key={r.id} onClick={()=>openTriage(r)}>
+                      <img className="pending-thumb"
+                        src={`https://drive.google.com/thumbnail?id=${r.driveFileId}&sz=w400`} alt="receipt"
+                        onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex"}}/>
+                      <div className="pending-thumb-ph" style={{display:"none"}}>🧾</div>
+                      <div className="pending-body">
+                        <div className="pending-merchant">{r.merchant||r.driveName||"Receipt"}</div>
+                        <div className="pending-meta">
+                          {r.merchant_address&&<div style={{fontSize:10,marginBottom:2}}>{r.merchant_address}</div>}
+                          {r.date?fmtDate(r.date):"Date unknown"}{r.time?` · ${r.time}`:""}
+                          {r.category?` · ${r.category}`:""}
+                          {r.payment_method&&<div style={{marginTop:2}}>{payIcon(r.payment_method)} {r.payment_method}{r.card_last4?` ···${r.card_last4}`:""}</div>}
+                          {taxNames&&<div style={{marginTop:2}}>🏷 {taxNames}</div>}
+                          {r.customer_name&&<div style={{marginTop:2}}>👤 {r.customer_name}</div>}
+                        </div>
+                        {r.amount&&<div className="pending-amount">{fmt(r.amount,r.currency)}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+        )}
+
+        {/* ── Expenses ── */}
+        {tab==="expenses" && (
+          expenses.length===0
+            ? <div className="empty"><div className="empty-ico">📋</div><div>No filed expenses yet.</div></div>
+            : Object.entries(grouped).map(([k,g]) => {
+                const gWork = g.items.reduce((s,e)=>s+(parseFloat(e.amount)||0)*(100-(e.personalPct||0))/100, 0);
+                return (
+                  <div className="trip-section" key={k}>
+                    <div className="trip-hd">
+                      <span className="trip-year-tag">{g.year}</span>
+                      <span className="trip-title">✈️ {g.name}</span>
+                      <div className="trip-total"><strong>{fmt(gWork)}</strong> work</div>
+                      <button className="btn btn-ghost btn-sm" style={{marginLeft:8}}
+                        onClick={()=>setEmailModal({tripName:g.name,year:g.year,expenses:g.items})}>
+                        ✉️ Email
+                      </button>
+                    </div>
+                    <div className="col-hd">
+                      <span>File</span><span>Merchant</span><span>Date</span>
+                      <span>Payment</span><span>Taxes</span><span>Total</span><span></span>
+                    </div>
+                    {g.items.map(e => (
+                      <div className="exp-row" key={e.id} onClick={()=>setDetail(e)}>
+                        {e.driveLink
+                          ? <a href={e.driveLink} target="_blank" rel="noreferrer"
+                              onClick={ev=>ev.stopPropagation()} style={{display:"flex"}}>
+                              <img className="thumb"
+                                src={`https://drive.google.com/thumbnail?id=${e.driveFileId}&sz=w80`} alt=""
+                                onError={ev=>{ev.target.style.display="none";ev.target.nextSibling.style.display="flex"}}/>
+                              <div className="thumb-ph" style={{display:"none"}}>🧾</div>
+                            </a>
+                          : <div className="thumb-ph">🧾</div>
+                        }
+                        <div>
+                          <div style={{fontWeight:500}}>{e.merchant||"—"}</div>
+                          <div style={{fontSize:11,color:C.muted,marginTop:2}}>{e.category}</div>
+                        </div>
+                        <div style={{color:C.muted,fontSize:12}}>{fmtDate(e.date)}</div>
+                        <div style={{fontSize:11}}>
+                          {e.payment_method
+                            ? `${payIcon(e.payment_method)} ${e.payment_method}${e.card_last4?` ···${e.card_last4}`:""}`
+                            : <span style={{color:C.muted}}>—</span>}
+                        </div>
+                        <div>
+                          {e.taxes?.length
+                            ? <span className="tag tg" title={e.taxes.map(t=>t.name).join(", ")}>
+                                {e.taxes.length>1?`${e.taxes.length} taxes`:e.taxes[0].name}
+                              </span>
+                            : <span className="tag tn">None</span>}
+                        </div>
+                        <div style={{fontWeight:600}}>{fmt(e.amount,e.currency)}</div>
+                        <div onClick={ev=>ev.stopPropagation()}>
+                          <button className="btn btn-danger"
+                            onClick={()=>setExpenses(p=>p.filter(x=>x.id!==e.id))}>✕</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })
+        )}
+      </div>
+
+      {/* ── Triage Modal ── */}
+      {triage && (
+        <div className="overlay" onClick={e=>e.target===e.currentTarget&&setTriage(null)}>
+          <div className="modal">
+            <div className="modal-title">File Receipt</div>
+            <div className="modal-sub">Review AI-extracted details, correct anything wrong, then assign to a trip.</div>
+
+            <img className="preview-img"
+              src={`https://drive.google.com/thumbnail?id=${triage.driveFileId}&sz=w700`} alt="receipt"/>
+
+            <div className="ai-flag">🤖 AI-extracted · please verify all fields before filing</div>
+
+            {/* Trip */}
+            <div className="slbl">Trip</div>
+            <div className="g2" style={{marginBottom:8}}>
+              <div className="field">
+                <label className="lbl">Trip name *</label>
+                <input className="inp" placeholder="e.g. Cisco Office Visit Q1"
+                  value={form.tripName} onChange={e=>f("tripName",e.target.value)} autoFocus/>
+              </div>
+              <div className="field">
+                <label className="lbl">Year</label>
+                <input className="inp" value={form.year} onChange={e=>f("year",e.target.value)}/>
+              </div>
+            </div>
+            <div className="path-preview">
+              📁 receipts / <span>{form.year||"…"}</span> / <span>{form.tripName||"…"}</span>
+            </div>
+
+            <hr className="dv"/>
+
+            {/* Merchant */}
+            <div className="slbl">Merchant</div>
+            <div className="g2">
+              <div className="field">
+                <label className="lbl">Business name</label>
+                <input className="inp" value={form.merchant} onChange={e=>f("merchant",e.target.value)}/>
+              </div>
+              <div className="field">
+                <label className="lbl">Category</label>
+                <select className="inp" value={form.category} onChange={e=>f("category",e.target.value)}>
+                  {CATS.map(c=><option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="field">
+              <label className="lbl">Business address</label>
+              <input className="inp" value={form.merchant_address} onChange={e=>f("merchant_address",e.target.value)} placeholder="If shown"/>
+            </div>
+            <div className="field">
+              <label className="lbl">Phone / website</label>
+              <input className="inp" value={form.merchant_phone} onChange={e=>f("merchant_phone",e.target.value)} placeholder="If shown"/>
+            </div>
+
+            <hr className="dv"/>
+
+            {/* Customer */}
+            <div className="slbl">Customer Details</div>
+            <div className="g3">
+              <div className="field">
+                <label className="lbl">Customer name</label>
+                <input className="inp" value={form.customer_name} onChange={e=>f("customer_name",e.target.value)} placeholder="If shown"/>
+              </div>
+              <div className="field">
+                <label className="lbl">Nationality</label>
+                <input className="inp" value={form.nationality} onChange={e=>f("nationality",e.target.value)} placeholder="e.g. British"/>
+              </div>
+              <div className="field">
+                <label className="lbl">Room / folio no.</label>
+                <input className="inp" value={form.room_number} onChange={e=>f("room_number",e.target.value)} placeholder="Hotel room etc."/>
+              </div>
+            </div>
+            <div className="field">
+              <label className="lbl">Customer address</label>
+              <input className="inp" value={form.customer_address} onChange={e=>f("customer_address",e.target.value)} placeholder="If shown on receipt"/>
+            </div>
+            {(form.check_in||form.check_out) && (
+              <div className="g2">
+                <div className="field">
+                  <label className="lbl">Check-in</label>
+                  <input className="inp" type="date" value={form.check_in} onChange={e=>f("check_in",e.target.value)}/>
+                </div>
+                <div className="field">
+                  <label className="lbl">Check-out</label>
+                  <input className="inp" type="date" value={form.check_out} onChange={e=>f("check_out",e.target.value)}/>
+                </div>
+              </div>
+            )}
+
+            <hr className="dv"/>
+
+            {/* Transaction */}
+            <div className="slbl">Transaction</div>
+            <div className="g4">
+              <div className="field">
+                <label className="lbl">Date</label>
+                <input className="inp" type="date" value={form.date} onChange={e=>f("date",e.target.value)}/>
+              </div>
+              <div className="field">
+                <label className="lbl">Time</label>
+                <input className="inp" type="time" value={form.time} onChange={e=>f("time",e.target.value)}/>
+              </div>
+              <div className="field">
+                <label className="lbl">Receipt no.</label>
+                <input className="inp" value={form.receipt_number} onChange={e=>f("receipt_number",e.target.value)} placeholder="Optional"/>
+              </div>
+              <div className="field">
+                <label className="lbl">Order no.</label>
+                <input className="inp" value={form.order_number} onChange={e=>f("order_number",e.target.value)} placeholder="Optional"/>
+              </div>
+            </div>
+
+            <hr className="dv"/>
+
+            {/* Payment */}
+            <div className="slbl">Payment</div>
+            <div className="g3">
+              <div className="field">
+                <label className="lbl">Method</label>
+                <input className="inp" value={form.payment_method} onChange={e=>f("payment_method",e.target.value)} placeholder="e.g. Visa, Cash, Amex"/>
+              </div>
+              <div className="field">
+                <label className="lbl">Card last 4</label>
+                <input className="inp" value={form.card_last4} onChange={e=>f("card_last4",e.target.value)} placeholder="1234" maxLength={4}/>
+              </div>
+              <div className="field">
+                <label className="lbl">Currency</label>
+                <select className="inp" value={form.currency} onChange={e=>f("currency",e.target.value)}>
+                  {CURS.map(c=><option key={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <hr className="dv"/>
+
+            {/* Amounts */}
+            <div className="slbl">Amounts</div>
+            <div className="g4">
+              <div className="field">
+                <label className="lbl">Subtotal</label>
+                <input className="inp" type="number" step="0.01" value={form.subtotal} onChange={e=>f("subtotal",e.target.value)} placeholder="0.00"/>
+              </div>
+              <div className="field">
+                <label className="lbl">Tip / gratuity</label>
+                <input className="inp" type="number" step="0.01" value={form.tip} onChange={e=>f("tip",e.target.value)} placeholder="0.00"/>
+              </div>
+              <div className="field">
+                <label className="lbl">Discount</label>
+                <input className="inp" type="number" step="0.01" value={form.discount} onChange={e=>f("discount",e.target.value)} placeholder="0.00"/>
+              </div>
+              <div className="field">
+                <label className="lbl">Total *</label>
+                <input className="inp" type="number" step="0.01" value={form.amount} onChange={e=>f("amount",e.target.value)} placeholder="0.00"/>
+              </div>
+            </div>
+
+            {/* Taxes */}
+            <div className="slbl">Taxes</div>
+            {form.taxes?.length>0 && (
+              <table className="dtable" style={{marginBottom:10}}>
+                <thead><tr><th>Tax name</th><th>Rate</th><th style={{textAlign:"right"}}>Amount</th><th></th></tr></thead>
+                <tbody>
+                  {form.taxes.map((t,i)=>(
+                    <tr key={i}>
+                      <td><input className="inp" style={{padding:"5px 8px",fontSize:12}}
+                        value={t.name} placeholder="e.g. VAT, City Tax, GST"
+                        onChange={e=>{const tx=[...form.taxes];tx[i]={...t,name:e.target.value};f("taxes",tx)}}/></td>
+                      <td><input className="inp" style={{padding:"5px 8px",fontSize:12}}
+                        value={t.rate} placeholder="e.g. 20%"
+                        onChange={e=>{const tx=[...form.taxes];tx[i]={...t,rate:e.target.value};f("taxes",tx)}}/></td>
+                      <td><input className="inp" style={{padding:"5px 8px",fontSize:12,textAlign:"right"}}
+                        type="number" step="0.01" value={t.amount}
+                        onChange={e=>{const tx=[...form.taxes];tx[i]={...t,amount:e.target.value};f("taxes",tx)}}/></td>
+                      <td><button className="btn btn-danger"
+                        onClick={()=>f("taxes",form.taxes.filter((_,j)=>j!==i))}>✕</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <button className="btn btn-ghost btn-sm" style={{marginBottom:16}}
+              onClick={()=>f("taxes",[...(form.taxes||[]),{name:"",rate:"",amount:""}])}>
+              + Add tax line
+            </button>
+
+            {/* Items */}
+            {form.items?.length>0 && (
+              <>
+                <hr className="dv"/>
+                <div className="slbl">Items Purchased</div>
+                <table className="dtable" style={{marginBottom:14}}>
+                  <thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th style={{textAlign:"right"}}>Total</th></tr></thead>
+                  <tbody>
+                    {form.items.map((it,i)=>(
+                      <tr key={i}>
+                        <td style={{color:C.text}}>{it.name}</td>
+                        <td style={{color:C.muted}}>{it.qty||"1"}</td>
+                        <td style={{color:C.muted}}>{it.unit_price?fmt(it.unit_price,form.currency):"—"}</td>
+                        <td className="amt">{it.total?fmt(it.total,form.currency):"—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            {/* Notes */}
+            {(form.notes) && (
+              <>
+                <hr className="dv"/>
+                <div className="field">
+                  <label className="lbl">Notes from receipt</label>
+                  <textarea className="inp" value={form.notes} onChange={e=>f("notes",e.target.value)}/>
+                </div>
+              </>
+            )}
+
+            <hr className="dv"/>
+
+            {/* Personal split */}
+            <div className="slbl">Personal Expense?</div>
+            <div className="choice-row">
+              {[["none","💼","Fully Work"],["partial","⚖️","Part Personal"],["full","🙋","Fully Personal"]].map(([v,ico,lbl])=>(
+                <button key={v} className={`choice${form.personal===v?" on":""}`} onClick={()=>f("personal",v)}>
+                  <div>{ico}</div><div style={{marginTop:5}}>{lbl}</div>
+                </button>
+              ))}
+            </div>
+            {form.personal==="partial" && (
+              <div style={{display:"flex",alignItems:"center",gap:10,marginTop:10}}>
+                <span style={{fontSize:12,color:C.muted}}>Personal portion:</span>
+                <input className="inp" type="number" min="1" max="99" value={form.personalPct}
+                  onChange={e=>f("personalPct",Math.min(99,Math.max(1,+e.target.value||0)))} style={{width:68}}/>
+                <span style={{fontSize:12,color:C.muted}}>% — Work: {100-form.personalPct}%</span>
+              </div>
+            )}
+
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={()=>setTriage(null)}>Cancel</button>
+              <button className="btn btn-accent" onClick={submitTriage} disabled={syncing}>
+                {syncing?<><span className="spinner"/>Filing…</>:"File Receipt →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Detail View ── */}
+      {detail && (
+        <div className="overlay" onClick={e=>e.target===e.currentTarget&&setDetail(null)}>
+          <div className="modal">
+            <div style={{display:"flex",alignItems:"flex-start",gap:16,marginBottom:20}}>
+              {detail.driveLink && (
+                <a href={detail.driveLink} target="_blank" rel="noreferrer">
+                  <img src={`https://drive.google.com/thumbnail?id=${detail.driveFileId}&sz=w200`}
+                    style={{width:90,height:72,objectFit:"cover",borderRadius:4,border:`1px solid ${C.border}`}} alt=""/>
+                </a>
+              )}
+              <div style={{flex:1}}>
+                <div className="modal-title">{detail.merchant||"Receipt"}</div>
+                <div style={{color:C.muted,fontSize:12,lineHeight:1.6}}>
+                  {detail.merchant_address&&<div>{detail.merchant_address}</div>}
+                  {fmtDate(detail.date)}{detail.time?` · ${detail.time}`:""}
+                  {detail.driveLink&&<a href={detail.driveLink} target="_blank" rel="noreferrer"
+                    style={{marginLeft:10,color:C.accent,fontSize:11}}>Open in Drive →</a>}
+                </div>
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setDetail(null)}>✕</button>
+            </div>
+
+            <div className="detail-grid" style={{marginBottom:18}}>
+              {[
+                ["Category",    detail.category],
+                ["Trip",        `${detail.year} / ${detail.tripName}`],
+                ["Payment",     detail.payment_method?`${payIcon(detail.payment_method)} ${detail.payment_method}${detail.card_last4?` ···${detail.card_last4}`:""}`:null],
+                ["Receipt no.", detail.receipt_number],
+                ["Order no.",   detail.order_number],
+                ["Customer",    detail.customer_name],
+                ["Address",     detail.customer_address],
+                ["Nationality", detail.nationality],
+                ["Room / folio",detail.room_number],
+                ["Check-in",    detail.check_in?fmtDate(detail.check_in):null],
+                ["Check-out",   detail.check_out?fmtDate(detail.check_out):null],
+              ].filter(([,v])=>v).map(([k,v])=>(
+                <div className="drow" key={k}>
+                  <div className="dkey">{k}</div>
+                  <div className="dval">{v}</div>
+                </div>
+              ))}
+            </div>
+
+            {detail.items?.length>0 && (
+              <>
+                <div className="slbl">Items Purchased</div>
+                <table className="dtable" style={{marginBottom:18}}>
+                  <thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th style={{textAlign:"right"}}>Total</th></tr></thead>
+                  <tbody>
+                    {detail.items.map((it,i)=>(
+                      <tr key={i}>
+                        <td style={{color:C.text}}>{it.name}</td>
+                        <td style={{color:C.muted}}>{it.qty||"1"}</td>
+                        <td style={{color:C.muted}}>{it.unit_price?fmt(it.unit_price,detail.currency):"—"}</td>
+                        <td className="amt">{it.total?fmt(it.total,detail.currency):"—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
+            <div className="slbl">Amounts</div>
+            <table className="dtable" style={{marginBottom:18}}>
+              <tbody>
+                {detail.subtotal&&<tr><td style={{color:C.muted}}>Subtotal</td><td className="amt">{fmt(detail.subtotal,detail.currency)}</td></tr>}
+                {(detail.taxes||[]).map((t,i)=>(
+                  <tr key={i}>
+                    <td style={{color:C.muted}}>{t.name}{t.rate?` (${t.rate})`:""}</td>
+                    <td className="amt">{fmt(t.amount,detail.currency)}</td>
+                  </tr>
+                ))}
+                {detail.tip&&<tr><td style={{color:C.muted}}>Tip / Gratuity</td><td className="amt">{fmt(detail.tip,detail.currency)}</td></tr>}
+                {detail.discount&&<tr><td style={{color:C.muted}}>Discount</td><td style={{textAlign:"right",color:C.green}}>−{fmt(detail.discount,detail.currency)}</td></tr>}
+                <tr>
+                  <td style={{fontWeight:600,color:C.text,paddingTop:10}}>Total</td>
+                  <td style={{textAlign:"right",fontWeight:700,fontSize:15,paddingTop:10}}>{fmt(detail.amount,detail.currency)}</td>
+                </tr>
+                {detail.personalPct>0&&(
+                  <tr>
+                    <td style={{color:C.muted}}>Work portion ({100-detail.personalPct}%)</td>
+                    <td style={{textAlign:"right",color:C.green}}>{fmt((parseFloat(detail.amount)||0)*(100-detail.personalPct)/100,detail.currency)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {detail.notes&&(
+              <>
+                <div className="slbl">Notes</div>
+                <div style={{fontSize:12,color:C.muted,lineHeight:1.7}}>{detail.notes}</div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Email Modal ── */}
+      {emailModal && (
+        <div className="overlay" onClick={e=>e.target===e.currentTarget&&setEmailModal(null)}>
+          <div className="modal" style={{maxWidth:460}}>
+            <div className="modal-title">✉️ Email Trip</div>
+            <div className="modal-sub">Sends from your Google account — CSV + all {emailModal.expenses.length} receipts attached.</div>
+            <div className="field">
+              <label className="lbl">Send to</label>
+              <input className="inp" type="email" placeholder="expenses@company.com"
+                value={emailTo} onChange={e=>setEmailTo(e.target.value)}
+                onKeyDown={e=>e.key==="Enter"&&!sending&&sendEmail()} autoFocus/>
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={()=>setEmailModal(null)}>Cancel</button>
+              <button className="btn btn-accent" onClick={sendEmail} disabled={sending||!emailTo.trim()}>
+                {sending?<><span className="spinner"/>Sending…</>:"Send ✉️"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast&&<div className="toast">{toast}</div>}
+    </div>
     </>
   );
 }
