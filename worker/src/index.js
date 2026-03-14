@@ -19,8 +19,8 @@
 const COOKIE          = "exp_session";
 const SESSION_TTL     = 60 * 60 * 24 * 7;
 const WEBHOOK_TTL     = 60 * 60 * 24 * 6;
-const RECEIPTS_ROOT   = "receipts";
-const PENDING_FOLDER  = "Pending";           // /receipts/Pending — phone drops here
+const RECEIPTS_ROOT   = "Receipts";
+const PENDING_FOLDER  = "Pending";           // /Receipts/Pending — phone drops here
 
 export default {
   async fetch(request, env) {
