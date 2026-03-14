@@ -24,7 +24,15 @@ const PENDING_FOLDER  = "Pending";           // /Receipts/Pending — phone drop
 
 export default {
   async fetch(request, env) {
-    const response = await handleRequest(request, env);
+    let response;
+    try {
+      response = await handleRequest(request, env);
+    } catch (err) {
+      response = new Response(JSON.stringify({ error: "internal", message: err.message }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     // Apply CORS to every response — no exceptions
     const origin = request.headers.get("Origin") || "https://expenses.funfairlabs.com";
     const h = new Headers(response.headers);
@@ -535,7 +543,8 @@ async function getPending(request, env) {
   if (!session) return ok({ error: "unauthenticated" }, 401);
 
   const userId = await env.KV.get("google_user_id");
-  if (userId !== session.id) return ok({ error: "wrong_user" }, 403);
+  // Only block if a different user is stored — not if it's simply not set yet
+  if (userId && userId !== session.id) return ok({ error: "wrong_user" }, 403);
 
   const list  = await env.KV.list({ prefix: "pending_" });
   const items = await Promise.all(list.keys.map(async k => {
