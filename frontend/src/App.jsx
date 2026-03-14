@@ -200,6 +200,74 @@ const css = `
   .drow{padding:6px 0;border-bottom:1px solid ${C.border}}
   .dkey{font-size:10px;color:${C.muted};text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px;font-weight:600}
   .dval{font-size:13px;color:${C.text}}
+  /* ── Mobile ≤ 640px ─────────────────────────────────────────────────────── */
+  @media (max-width: 640px) {
+
+    /* Nav */
+    .header { padding: 10px 14px; gap: 8px; }
+    .logo   { font-size: 15px; }
+    .header-right { gap: 6px; }
+    .header-right > span { display: none; }
+    .avatar { width: 24px; height: 24px; }
+    .btn-sm { padding: 5px 10px; font-size: 11px; }
+
+    /* Main */
+    .main { padding: 16px 12px; }
+
+    /* Summary — stack vertically */
+    .summary { flex-direction: column; align-items: flex-start; gap: 12px; padding: 14px 16px; }
+    .summary button { width: 100%; justify-content: center; margin-left: 0 !important; }
+
+    /* Tabs */
+    .tab { padding: 8px 12px; font-size: 12px; }
+
+    /* Pending cards — single column */
+    .pending-grid { grid-template-columns: 1fr; }
+
+    /* Expense rows — collapse 7-col grid to 3-col card */
+    .col-hd { display: none; }
+    .exp-row {
+      grid-template-columns: 40px 1fr auto;
+      grid-template-rows: auto auto;
+      gap: 6px 10px;
+      padding: 12px 10px;
+    }
+    .exp-row > :nth-child(1) { grid-row: 1 / 3; align-self: center; }
+    .exp-row > :nth-child(2) { grid-column: 2; grid-row: 1; }
+    .exp-row > :nth-child(3) { grid-column: 2; grid-row: 2; font-size: 11px; }
+    .exp-row > :nth-child(4) { display: none; }
+    .exp-row > :nth-child(5) { grid-column: 3; grid-row: 1; }
+    .exp-row > :nth-child(6) { grid-column: 3; grid-row: 2; font-size: 13px; }
+    .exp-row > :nth-child(7) { display: none; }
+
+    /* Form grids — all single column */
+    .g2, .g3, .g4 { grid-template-columns: 1fr; }
+
+    /* Modal — bottom sheet */
+    .overlay { padding: 0; align-items: flex-end; }
+    .modal { border-radius: 20px 20px 0 0; padding: 20px 16px 32px; max-width: 100%; max-height: 90vh; overflow-y: auto; }
+    .modal-title { font-size: 18px; }
+    .modal-actions { flex-direction: column-reverse; }
+    .modal-actions .btn { width: 100%; justify-content: center; }
+
+    /* Login */
+    .login-card { width: 100%; padding: 32px 20px; border-radius: 16px; }
+    .login-title { font-size: 24px; }
+
+    /* Choice row */
+    .choice-row { gap: 6px; }
+    .choice { padding: 10px 4px; font-size: 11px; }
+
+    /* Detail grid */
+    .detail-grid { grid-template-columns: 1fr; }
+
+    /* Toast — bottom */
+    .toast { top: auto; bottom: 16px; right: 12px; left: 12px; max-width: none; }
+
+    /* Trip header */
+    .trip-hd { flex-wrap: wrap; gap: 6px; }
+    .trip-total { margin-left: 0; }
+  }
 `;
 
 const fmt = (n, cur = "GBP") => {
@@ -926,3 +994,4 @@ export default function App() {
     </>
   );
 }
+
