@@ -34,7 +34,19 @@ export default {
     await env.KV.put(rk, String(rct), { expirationTtl: 120 });
     if (rct > 120) return new Response("Too many requests", { status: 429 });
 
-    if (request.method === "OPTIONS") return ok(null, 204);
+    if (request.method === "OPTIONS") {
+      const origin = request.headers.get("Origin") || "https://expenses.funfairlabs.com";
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin":      origin,
+          "Access-Control-Allow-Credentials": "true",
+          "Access-Control-Allow-Methods":     "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers":     "Content-Type",
+          "Vary":                             "Origin",
+        },
+      });
+    }
 
     if (path === "/auth/google")          return googleStart(request, env);
     if (path === "/auth/google/callback") return googleCallback(request, env);
@@ -113,14 +125,14 @@ async function googleCallback(request, env) {
 
   const res = Response.redirect(env.FRONTEND_URL + "?login=success", 302);
   const h   = new Headers(res.headers);
-  h.set("Set-Cookie", `${COOKIE}=${sid}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_TTL}`);
+  h.set("Set-Cookie", `${COOKIE}=${sid}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${SESSION_TTL}`);
   return new Response(res.body, { status: res.status, headers: h });
 }
 
 function logout(request, env) {
   const res = Response.redirect(env.FRONTEND_URL, 302);
   const h   = new Headers(res.headers);
-  h.set("Set-Cookie", `${COOKIE}=; Path=/; HttpOnly; Secure; Max-Age=0`);
+  h.set("Set-Cookie", `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0`);
   return new Response(res.body, { status: res.status, headers: h });
 }
 
@@ -703,15 +715,17 @@ async function emailTrip(request, env) {
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
-function ok(data, status = 200) {
+function ok(data, status = 200, request = null) {
+  const origin = request?.headers.get("Origin") || "https://expenses.funfairlabs.com";
   return new Response(data === null ? null : JSON.stringify(data), {
     status,
     headers: {
-      "Content-Type":                "application/json",
-      "Access-Control-Allow-Origin": "*",
+      "Content-Type":                     "application/json",
+      "Access-Control-Allow-Origin":      origin,
       "Access-Control-Allow-Credentials": "true",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods":     "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers":     "Content-Type",
+      "Vary":                             "Origin",
     },
   });
 }
