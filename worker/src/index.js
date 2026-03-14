@@ -543,13 +543,18 @@ async function getPending(request, env) {
   if (!session) return ok({ error: "unauthenticated" }, 401);
 
   const userId = await env.KV.get("google_user_id");
-  // Only block if a different user is stored — not if it's simply not set yet
   if (userId && userId !== session.id) return ok({ error: "wrong_user" }, 403);
 
   const list  = await env.KV.list({ prefix: "pending_" });
   const items = await Promise.all(list.keys.map(async k => {
     const v = await env.KV.get(k.name);
-    return v ? JSON.parse(v) : null;
+    if (!v) return null;
+    try { return JSON.parse(v); }
+    catch {
+      // Corrupt entry — delete it and skip
+      await env.KV.delete(k.name);
+      return null;
+    }
   }));
   return ok(items.filter(Boolean));
 }
