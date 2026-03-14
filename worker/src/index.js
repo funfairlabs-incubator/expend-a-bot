@@ -424,14 +424,19 @@ async function driveWebhook(request, env) {
 
     let extracted = {};
     try {
-      const b64           = await driveDownloadBase64(driveToken, file.id);
-      const mimeForClaude = file.mimeType.startsWith("image/") ? file.mimeType : "image/jpeg";
+      const b64    = await driveDownloadBase64(driveToken, file.id);
+      const isPdf  = file.mimeType === "application/pdf";
+
+      // Build the correct content block — PDFs use document type, images use image type
+      const fileBlock = isPdf
+        ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } }
+        : { type: "image",    source: { type: "base64", media_type: file.mimeType,     data: b64 } };
 
       const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "x-api-key":        env.ANTHROPIC_API_KEY,
+          "Content-Type":      "application/json",
+          "x-api-key":         env.ANTHROPIC_API_KEY,
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
@@ -440,7 +445,7 @@ async function driveWebhook(request, env) {
           messages: [{
             role: "user",
             content: [
-              { type: "image", source: { type: "base64", media_type: mimeForClaude, data: b64 } },
+              fileBlock,
               { type: "text", text: `You are a receipt data extractor. Analyse this receipt image and extract every piece of information present.
 
 Return ONLY a valid JSON object — no markdown, no preamble. Omit any field that is genuinely absent from the receipt (do not include empty strings for missing fields).
