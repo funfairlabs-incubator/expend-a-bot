@@ -73,6 +73,8 @@ async function handleRequest(request, env) {
   if (path === "/api/expenses")         return handleExpenses(request, env);
   if (path === "/api/subscribe")        return subscribeWebhook(request, env);
   if (path === "/api/email-trip")       return emailTrip(request, env);
+  if (path === "/api/delete-pending")   return deletePending(request, env);
+  if (path === "/api/delete-expense")   return deleteExpense(request, env);
 
   return new Response("Not found", { status: 404 });
 }
@@ -737,6 +739,56 @@ async function emailTrip(request, env) {
     return ok({ error: "gmail_failed", message: e.error?.message }, 500);
   }
   return ok({ ok: true });
+}
+
+
+// ── Delete Pending ─────────────────────────────────────────────────────────
+// Removes KV entry and optionally trashes the Drive file.
+// Called when user dismisses an erroneous receipt from the inbox.
+
+async function deletePending(request, env) {
+  const { session, sid } = await loadSession(request, env);
+  if (!session) return ok({ error: "unauthenticated" }, 401);
+
+  const token = await freshToken(session, env, sid);
+  const { fileId, trashDrive = true } = await request.json();
+  if (!fileId) return ok({ error: "missing fileId" }, 400);
+
+  // Remove from KV
+  await env.KV.delete(`pending_${fileId}`);
+  await env.KV.delete(`notified_${fileId}`);
+
+  // Optionally trash in Drive (best-effort, don't fail if token missing)
+  if (trashDrive && token) {
+    try {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ trashed: true }),
+      });
+    } catch {}
+  }
+
+  return ok({ ok: true });
+}
+
+// ── Delete Expense ─────────────────────────────────────────────────────────
+// Removes a filed expense from KV. Does NOT touch Drive — the file has
+// already been moved to its trip folder and you may want to keep it.
+
+async function deleteExpense(request, env) {
+  const { session } = await loadSession(request, env);
+  if (!session) return ok({ error: "unauthenticated" }, 401);
+
+  const { expenseId } = await request.json();
+  if (!expenseId) return ok({ error: "missing expenseId" }, 400);
+
+  const key  = `expenses_${session.id}`;
+  const data = JSON.parse(await env.KV.get(key) || "[]");
+  const next = data.filter(e => e.id !== expenseId);
+  await env.KV.put(key, JSON.stringify(next), { expirationTtl: SESSION_TTL * 52 });
+
+  return ok({ ok: true, removed: data.length - next.length });
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────

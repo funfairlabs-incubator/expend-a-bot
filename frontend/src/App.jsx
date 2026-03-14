@@ -318,7 +318,33 @@ export default function App() {
     return () => clearInterval(pollRef.current);
   }, [user]);
 
-  const loadPending = async () => {
+  const deletePendingItem = async (fileId, e) => {
+    e.stopPropagation();
+    try {
+      await fetch(`${API}/api/delete-pending`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileId, trashDrive: true }),
+      });
+    } catch {}
+    setPending(p => p.filter(x => x.id !== fileId));
+    toast$("Receipt removed");
+  };
+
+  const deleteExpenseItem = async (expenseId, ev) => {
+    ev.stopPropagation();
+    try {
+      await fetch(`${API}/api/delete-expense`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expenseId }),
+      });
+    } catch {}
+    setExpenses(p => p.filter(x => x.id !== expenseId));
+    toast$("Expense deleted");
+  };
+
+    const loadPending = async () => {
     try {
       const r = await fetch(`${API}/api/pending`, { credentials:"include" });
       const d = await r.json();
@@ -465,7 +491,7 @@ export default function App() {
     <div className="login-wrap">
       <div className="login-card">
         <div style={{fontSize:42,marginBottom:16}}>🧾</div>
-        <div className="login-title">Expend<span>-a-</span>Bot</div>
+        <div className="login-title">FunFairLabs<span> / </span>Expenses</div>
         <div className="login-sub">Scan with your phone → Drive → AI extracts everything<br/>Triage, file by trip, email to accounts</div>
         <a className="auth-btn" href={`${API}/auth/google`}>
           <svg width="18" height="18" viewBox="0 0 24 24">
@@ -488,12 +514,14 @@ export default function App() {
     <div className="app">
 
       <div className="header">
-        <div className="logo">Expend<span>-a-</span>Bot</div>
+        <div className="logo">FunFairLabs<span> / </span>Expenses</div>
         <div className="header-right">
           <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:C.muted}}>
             <div className={`sync-dot${syncing?" busy":""}`}/>
             {syncing?"Syncing…":"Live"}
           </div>
+          <a href="https://drive.google.com/drive/search?q=Receipts" target="_blank" rel="noreferrer"
+            className="btn btn-ghost btn-sm" title="Open Receipts in Drive">📁 Drive</a>
           <img className="avatar" src={user.avatar} alt=""/>
           <span style={{fontSize:12,color:C.muted}}>{user.name}</span>
           <a href={`${API}/auth/logout`} className="btn btn-ghost btn-sm">Sign out</a>
@@ -536,7 +564,15 @@ export default function App() {
                   const ex = r.extracted||{};
                   const taxNames = (ex.taxes||[]).map(t=>t.name).filter(Boolean).join(", ");
                   return (
-                    <div className="pending-card" key={r.id} onClick={()=>openTriage(r)}>
+                    <div className="pending-card" key={r.id} style={{position:"relative"}}>
+                      <button onClick={ev=>deletePendingItem(r.id,ev)}
+                        style={{position:"absolute",top:8,right:8,zIndex:10,
+                          background:"rgba(26,25,22,0.55)",backdropFilter:"blur(4px)",
+                          border:"none",borderRadius:"50%",width:26,height:26,
+                          color:"#fff",fontSize:14,cursor:"pointer",display:"flex",
+                          alignItems:"center",justifyContent:"center",lineHeight:1}}
+                        title="Remove receipt">✕</button>
+                      <div onClick={()=>openTriage(r)} style={{cursor:"pointer"}}>
                       <img className="pending-thumb"
                         src={`https://drive.google.com/thumbnail?id=${r.driveFileId}&sz=w400`} alt="receipt"
                         onError={e=>{e.target.style.display="none";e.target.nextSibling.style.display="flex"}}/>
@@ -552,6 +588,7 @@ export default function App() {
                           {r.customer_name&&<div style={{marginTop:2}}>👤 {r.customer_name}</div>}
                         </div>
                         {r.amount&&<div className="pending-amount">{fmt(r.amount,r.currency)}</div>}
+                      </div>
                       </div>
                     </div>
                   );
@@ -612,7 +649,7 @@ export default function App() {
                         <div style={{fontWeight:600}}>{fmt(e.amount,e.currency)}</div>
                         <div onClick={ev=>ev.stopPropagation()}>
                           <button className="btn btn-danger"
-                            onClick={()=>setExpenses(p=>p.filter(x=>x.id!==e.id))}>✕</button>
+                            onClick={ev=>deleteExpenseItem(e.id,ev)}>✕</button>
                         </div>
                       </div>
                     ))}
