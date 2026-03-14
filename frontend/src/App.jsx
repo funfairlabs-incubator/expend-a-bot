@@ -2,26 +2,43 @@ import { useState, useEffect, useRef } from "react";
 
 const API = import.meta.env.VITE_API_URL || "https://expenses-tracker-api.YOUR_SUBDOMAIN.workers.dev";
 
-// Theme Constants — exactly matching funfairlabs.com/index.html CSS variables
+// Dynamic palette — mirrors funfairlabs.com/index.html palette rotation exactly.
+// Three hue ranges, one picked at random on every page load.
+function pickPalette() {
+  const ranges = [[0, 35], [165, 260], [280, 340]];
+  const r = ranges[Math.floor(Math.random() * ranges.length)];
+  const h = Math.floor(Math.random() * (r[1] - r[0]) + r[0]);
+  return {
+    h,
+    pri:  `hsl(${h},78%,42%)`,
+    priD: `hsl(${h},76%,30%)`,
+    priL: `hsl(${h},82%,95%)`,
+    priT: `hsla(${h},78%,42%,0.13)`,
+  };
+}
+
+// Palette is fixed for the lifetime of this module (one load = one palette).
+const PAL = pickPalette();
+
+// Static tokens — match CSS variables in index.html
 const C = {
-  bg:       "#faf9f7",         // --bg
-  surface:  "#ffffff",         // --surface
-  surface2: "#f3f1ed",         // --surface-2
-  border:   "#e4e0d8",         // --border
-  borderS:  "#ccc8be",         // --border-s
-  text:     "#1c1a17",         // --text
-  text2:    "#4a4540",         // --text-2
-  text3:    "#908a80",         // --text-3
-  radius:   "10px",            // --radius
-  radiusLg: "18px",            // --radius-lg
-  shadow:   "0 1px 4px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.05)", // --shadow
-  shadowMd: "0 6px 24px rgba(0,0,0,.09)",                             // --shadow-md
-  palH:     24,                // --pal-h
-  // --pal-pri: hsl(24, 78%, 42%) — the brand burnt-orange
-  pri:      "hsl(24, 78%, 42%)",
-  priD:     "hsl(24, 76%, 30%)",
-  priL:     "hsl(24, 82%, 95%)",
-  priT:     "hsla(24, 78%, 42%, 0.13)",
+  bg:       "#faf9f7",
+  surface:  "#ffffff",
+  surface2: "#f3f1ed",
+  border:   "#e4e0d8",
+  borderS:  "#ccc8be",
+  text:     "#1c1a17",
+  text2:    "#4a4540",
+  text3:    "#908a80",
+  radius:   "10px",
+  radiusLg: "18px",
+  shadow:   "0 1px 4px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.05)",
+  shadowMd: "0 6px 24px rgba(0,0,0,.09)",
+  // Dynamic palette slots — resolved once per load
+  pri:  PAL.pri,
+  priD: PAL.priD,
+  priL: PAL.priL,
+  priT: PAL.priT,
 };
 
 const css = `
@@ -367,7 +384,7 @@ function EmailModal({ onClose }) {
           />
         </div>
         {sent && (
-          <p style={{ fontSize: 14, color: "hsl(24,78%,42%)", fontWeight: 600 }}>
+          <p style={{ fontSize: 14, color: C.pri, fontWeight: 600 }}>
             ✓ Report sent to {email}
           </p>
         )}
@@ -396,7 +413,7 @@ export default function App() {
   const approved = expenses.filter(e => e.status === "approved").reduce((s, e) => s + e.amount, 0);
   const pending  = expenses.filter(e => e.status === "pending").length;
 
-  const C_LOCAL = { pri: "hsl(24, 78%, 42%)", text: "#1c1a17", text2: "#4a4540", text3: "#908a80", border: "#e4e0d8" };
+  // C_LOCAL is just an alias — palette already resolved in module-level C above
 
   return (
     <>
