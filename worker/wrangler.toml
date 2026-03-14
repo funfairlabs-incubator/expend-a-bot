@@ -1,0 +1,29 @@
+name = "expend-a-bot"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[vars]
+# Non-sensitive config — update these after deploying the worker
+APP_URL      = "https://expend-a-bot.YOUR_SUBDOMAIN.workers.dev"
+FRONTEND_URL = "https://expenses.funfairlabs.com"
+
+[triggers]
+crons = [
+  "0 6 * * *",   # 6am UTC — renew Drive webhook (max 7 day TTL)
+  "0 8 * * *",   # 8am UTC — Pushover nudge if pending receipts exist
+]
+
+# ── Secrets (never stored here — set via CLI or GitHub Actions) ─────────────
+#
+#   wrangler secret put GOOGLE_CLIENT_ID
+#   wrangler secret put GOOGLE_CLIENT_SECRET
+#   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put WEBHOOK_SECRET
+#   wrangler secret put PUSHOVER_API_TOKEN
+#   wrangler secret put PUSHOVER_USER_KEY
+#
+# See README.md → Deploy guide for full instructions.

@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+dist/
+build/
+.output/
+
+# Environment & secrets — NEVER commit these
+.env
+.env.local
+.env.*.local
+.dev.vars
+
+# Wrangler
+.wrangler/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
