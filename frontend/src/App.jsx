@@ -2,24 +2,52 @@ import { useState, useEffect, useRef } from "react";
 
 const API = import.meta.env.VITE_API_URL || "https://expenses-tracker-api.YOUR_SUBDOMAIN.workers.dev";
 
+// Dynamic palette — mirrors funfairlabs.com/index.html exactly.
+// Picks a random hue from one of three ranges on every page load.
+function pickPalette() {
+  const ranges = [[0, 35], [165, 260], [280, 340]];
+  const r = ranges[Math.floor(Math.random() * ranges.length)];
+  const h = Math.floor(Math.random() * (r[1] - r[0]) + r[0]);
+  return {
+    pri:  `hsl(${h},78%,42%)`,
+    priD: `hsl(${h},76%,30%)`,
+    priL: `hsl(${h},82%,95%)`,
+    priT: `hsla(${h},78%,42%,0.13)`,
+  };
+}
+const PAL = pickPalette();
+
 const C = {
-  bg:     "#f5f4f0", surf:   "#ffffff", surf2:  "#f0ede6", surf3:  "#e8e4db",
-  border: "#e2ddd4", text:   "#1a1916", muted:  "#9a9690",
-  accent: "#f97316", green:  "#16a34a", red:    "#dc2626", blue:   "#6366f1",
-  text2:  "#4a4740",
+  bg:     "#faf9f7",   // --bg
+  surf:   "#ffffff",   // --surface
+  surf2:  "#f3f1ed",   // --surface-2
+  surf3:  "#e8e4db",
+  border: "#e4e0d8",   // --border
+  borderS:"#ccc8be",   // --border-s
+  text:   "#1c1a17",   // --text
+  text2:  "#4a4540",   // --text-2
+  muted:  "#908a80",   // --text-3
+  accent: PAL.pri,
+  accentD:PAL.priD,
+  accentL:PAL.priL,
+  accentT:PAL.priT,
+  green:  "#16a34a",
+  red:    "#dc2626",
+  blue:   "#6366f1",
 };
 
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   html,body,#root{min-height:100vh}
   body{background:${C.bg};color:${C.text};font-family:'DM Sans',sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
   .app{min-height:100vh;display:flex;flex-direction:column}
 
-  .header{background:${C.surf};border-bottom:1px solid ${C.border};padding:14px 28px;
-    display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:50;
+  .header{background:rgba(250,249,247,0.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border-bottom:1px solid ${C.border};border-top:3px solid ${C.accent};
+    padding:14px 28px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:50;
     box-shadow:0 1px 3px rgba(0,0,0,0.04)}
-  .logo{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:${C.text};letter-spacing:-0.02em}
+  .logo{font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:800;color:${C.text};letter-spacing:-0.02em}
   .logo span{color:${C.accent}}
   .header-right{margin-left:auto;display:flex;align-items:center;gap:10px}
   .avatar{width:28px;height:28px;border-radius:50%;border:2px solid ${C.border}}
@@ -29,30 +57,30 @@ const css = `
     transition:all 0.15s}
   .btn:disabled{opacity:.4;cursor:not-allowed}
   .btn-accent{background:${C.accent};color:#fff}
-  .btn-accent:hover:not(:disabled){background:#ea6a05}
+  .btn-accent:hover:not(:disabled){background:${C.accentD}}
   .btn-ghost{background:transparent;color:${C.text2};border:1.5px solid ${C.border}}
-  .btn-ghost:hover:not(:disabled){border-color:${C.accent};color:${C.accent};background:rgba(249,115,22,0.05)}
+  .btn-ghost:hover:not(:disabled){border-color:${C.accent};color:${C.accent};background:${C.accentT}}
   .btn-danger{background:transparent;color:${C.red};border:1px solid transparent;padding:5px 9px;font-size:11px;border-radius:6px}
   .btn-danger:hover{border-color:${C.red};background:rgba(220,38,38,0.05)}
   .btn-sm{padding:6px 12px;font-size:12px}
 
   .main{flex:1;padding:28px;max-width:1100px;margin:0 auto;width:100%}
-  .slbl{font-family:'Syne',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;
+  .slbl{font-family:Arial,Helvetica,sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:0.1em;
     color:${C.accent};font-weight:700;margin-bottom:10px}
 
   .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;
-    background:${C.bg};background-image:radial-gradient(ellipse at 30% 20%,rgba(249,115,22,0.08) 0%,transparent 60%)}
+    background:${C.bg};background-image:radial-gradient(ellipse at 30% 20%,${C.accentT} 0%,transparent 60%)}
   .login-card{background:${C.surf};border:1.5px solid ${C.border};border-radius:20px;
     padding:48px;width:420px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.08)}
-  .login-title{font-family:'Syne',sans-serif;font-size:30px;font-weight:800;color:${C.text};
+  .login-title{font-family:Arial,Helvetica,sans-serif;font-size:30px;font-weight:800;color:${C.text};
     letter-spacing:-0.03em;margin-bottom:8px}
   .login-title span{color:${C.accent}}
   .login-sub{color:${C.muted};font-size:13px;line-height:1.7;margin-bottom:32px}
   .auth-btn{width:100%;padding:13px 18px;border-radius:10px;border:1.5px solid ${C.border};
     background:${C.surf};color:${C.text};font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;
     cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;transition:all 0.15s;text-decoration:none}
-  .auth-btn:hover{border-color:${C.accent};background:rgba(249,115,22,0.04);transform:translateY(-1px);
-    box-shadow:0 4px 12px rgba(249,115,22,0.12)}
+  .auth-btn:hover{border-color:${C.accent};background:${C.accentT};transform:translateY(-1px);
+    box-shadow:0 4px 12px ${C.accentT}}
   .auth-note{font-size:11px;color:${C.muted};margin-top:16px;line-height:1.7}
 
   .tabs{display:flex;margin-bottom:24px;border-bottom:2px solid ${C.border}}
@@ -66,19 +94,19 @@ const css = `
   .pending-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:16px}
   .pending-card{background:${C.surf};border:1.5px solid ${C.border};border-radius:16px;
     overflow:hidden;transition:all 0.2s;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.04)}
-  .pending-card:hover{border-color:${C.accent};box-shadow:0 8px 24px rgba(249,115,22,0.12);transform:translateY(-2px)}
+  .pending-card:hover{border-color:${C.accent};box-shadow:0 8px 24px ${C.accentT};transform:translateY(-2px)}
   .pending-thumb{width:100%;height:140px;object-fit:cover;background:${C.surf2};display:block}
   .pending-thumb-ph{width:100%;height:140px;background:${C.surf2};display:flex;align-items:center;
     justify-content:center;font-size:32px;opacity:.3}
   .pending-body{padding:14px 16px}
-  .pending-merchant{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;margin-bottom:4px;color:${C.text}}
+  .pending-merchant{font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:14px;margin-bottom:4px;color:${C.text}}
   .pending-meta{font-size:11px;color:${C.muted};line-height:1.7}
-  .pending-amount{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:${C.accent};margin-top:8px}
+  .pending-amount{font-family:Arial,Helvetica,sans-serif;font-size:18px;font-weight:700;color:${C.accent};margin-top:8px}
 
   .trip-section{margin-bottom:32px}
   .trip-hd{display:flex;align-items:center;gap:10px;padding-bottom:12px;
     border-bottom:2px solid ${C.border};margin-bottom:12px}
-  .trip-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.02em}
+  .trip-title{font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.02em}
   .trip-year-tag{font-size:11px;font-weight:600;color:${C.muted};background:${C.surf2};
     border:1.5px solid ${C.border};border-radius:6px;padding:3px 9px;font-family:'DM Mono',monospace}
   .trip-total{margin-left:auto;font-size:12px;color:${C.muted}}
@@ -90,7 +118,7 @@ const css = `
     gap:10px;padding:11px 14px;background:${C.surf};border:1.5px solid ${C.border};
     border-radius:12px;align-items:center;margin-bottom:6px;cursor:pointer;transition:all 0.15s;
     box-shadow:0 1px 3px rgba(0,0,0,0.03)}
-  .exp-row:hover{border-color:${C.accent};box-shadow:0 4px 12px rgba(249,115,22,0.08)}
+  .exp-row:hover{border-color:${C.accent};box-shadow:0 4px 12px ${C.accentT}}
   .thumb{width:40px;height:32px;object-fit:cover;border-radius:6px;border:1.5px solid ${C.border}}
   .thumb-ph{width:40px;height:32px;background:${C.surf2};border:1.5px solid ${C.border};
     border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;opacity:.5}
@@ -99,7 +127,7 @@ const css = `
     font-size:10px;font-weight:600;letter-spacing:.04em;white-space:nowrap}
   .tg{background:rgba(22,163,74,.1);color:${C.green};border:1.5px solid rgba(22,163,74,.2)}
   .tb{background:rgba(99,102,241,.1);color:${C.blue};border:1.5px solid rgba(99,102,241,.2)}
-  .ta{background:rgba(249,115,22,.1);color:${C.accent};border:1.5px solid rgba(249,115,22,.2)}
+  .ta{background:${C.accentL};color:${C.accent};border:1.5px solid ${C.accentT}}
   .tr{background:rgba(220,38,38,.08);color:${C.red};border:1.5px solid rgba(220,38,38,.15)}
   .tn{background:${C.surf2};color:${C.muted};border:1.5px solid ${C.border}}
 
@@ -109,7 +137,7 @@ const css = `
   .inp{width:100%;background:${C.surf};border:1.5px solid ${C.border};border-radius:8px;
     padding:9px 12px;color:${C.text};font-family:'DM Sans',sans-serif;font-size:13px;
     outline:none;transition:border-color 0.15s}
-  .inp:focus{border-color:${C.accent};box-shadow:0 0 0 3px rgba(249,115,22,0.1)}
+  .inp:focus{border-color:${C.accent};box-shadow:0 0 0 3px ${C.accentL}}
   select.inp{cursor:pointer;background-color:${C.surf}}
   textarea.inp{resize:vertical;min-height:60px;line-height:1.5}
   .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -122,7 +150,7 @@ const css = `
     padding:24px 16px 60px;backdrop-filter:blur(8px);overflow-y:auto}
   .modal{background:${C.surf};border:1.5px solid ${C.border};border-radius:20px;
     padding:28px 32px;width:100%;max-width:760px;box-shadow:0 24px 64px rgba(0,0,0,0.12)}
-  .modal-title{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;
+  .modal-title{font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:800;
     letter-spacing:-0.02em;margin-bottom:4px}
   .modal-sub{font-size:12px;color:${C.muted};margin-bottom:20px}
   .preview-img{width:100%;max-height:200px;object-fit:contain;border-radius:12px;
@@ -133,8 +161,8 @@ const css = `
   .choice{padding:12px 8px;border-radius:10px;border:1.5px solid ${C.border};background:${C.surf};
     color:${C.text};font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;
     cursor:pointer;text-align:center;transition:all 0.15s}
-  .choice:hover{border-color:${C.accent};background:rgba(249,115,22,0.04)}
-  .choice.on{border-color:${C.accent};background:rgba(249,115,22,0.08);color:${C.accent}}
+  .choice:hover{border-color:${C.accent};background:${C.accentT}}
+  .choice.on{border-color:${C.accent};background:${C.accentT};color:${C.accent}}
 
   .dtable{width:100%;border-collapse:collapse;font-size:12px}
   .dtable th{text-align:left;padding:6px 8px;font-size:10px;color:${C.muted};
@@ -146,10 +174,10 @@ const css = `
   .summary{background:${C.surf};border:1.5px solid ${C.border};border-radius:16px;
     padding:16px 24px;display:flex;gap:32px;margin-bottom:24px;align-items:center;flex-wrap:wrap;
     box-shadow:0 2px 8px rgba(0,0,0,0.04)}
-  .stat .v{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:${C.accent};display:block;letter-spacing:-0.02em}
+  .stat .v{font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:800;color:${C.accent};display:block;letter-spacing:-0.02em}
   .stat .l{font-size:10px;color:${C.muted};text-transform:uppercase;letter-spacing:.1em;font-weight:600}
 
-  .spinner{width:14px;height:14px;border:2px solid rgba(249,115,22,.25);
+  .spinner{width:14px;height:14px;border:2px solid ${C.accentT};
     border-top-color:${C.accent};border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
   @keyframes spin{to{transform:rotate(360deg)}}
   .empty{text-align:center;padding:56px 20px;color:${C.muted}}
