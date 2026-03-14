@@ -413,7 +413,6 @@ export default function App() {
   const approved = expenses.filter(e => e.status === "approved").reduce((s, e) => s + e.amount, 0);
   const pending  = expenses.filter(e => e.status === "pending").length;
 
-  // C_LOCAL is just an alias — palette already resolved in module-level C above
 
   return (
     <>
@@ -425,7 +424,7 @@ export default function App() {
           <div className="nav-logo">
             <span>FunFair<em>Labs</em></span>
           </div>
-          <span style={{ fontSize: 14, color: C_LOCAL.text3, fontWeight: 500 }}>Expenses</span>
+          <span style={{ fontSize: 14, color: C.text3, fontWeight: 500 }}>Expenses</span>
           <div className="nav-spacer" />
           <button className="btn btn-primary" style={{ padding: "7px 15px", fontSize: 13 }} onClick={() => setEmailModal(true)}>
             Send Report ✉
@@ -494,7 +493,7 @@ export default function App() {
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: "center", color: C_LOCAL.text3, padding: 32 }}>
+                  <td colSpan={5} style={{ textAlign: "center", color: C.text3, padding: 32 }}>
                     No expenses found.
                   </td>
                 </tr>
@@ -505,7 +504,7 @@ export default function App() {
                   <td>
                     <span className="badge badge-pri">{e.category}</span>
                   </td>
-                  <td style={{ color: C_LOCAL.text2 }}>{e.date}</td>
+                  <td style={{ color: C.text2 }}>{e.date}</td>
                   <td>
                     <span className={`badge ${e.status === "approved" ? "badge-green" : "badge-red"}`}>
                       {e.status === "approved" ? "✓ Approved" : "⏳ Pending"}
