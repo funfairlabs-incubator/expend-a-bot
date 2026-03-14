@@ -203,70 +203,107 @@ const css = `
   /* ── Mobile ≤ 640px ─────────────────────────────────────────────────────── */
   @media (max-width: 640px) {
 
-    /* Nav */
-    .header { padding: 10px 14px; gap: 8px; }
-    .logo   { font-size: 15px; }
-    .header-right { gap: 6px; }
-    .header-right > span { display: none; }
-    .avatar { width: 24px; height: 24px; }
-    .btn-sm { padding: 5px 10px; font-size: 11px; }
+    /* 1. NAV — tighter, hide username text, sign-out text → icon */
+    .header { padding: 10px 12px; gap: 6px; }
+    .logo   { font-size: 14px; letter-spacing: -0.01em; }
+    .header-right { gap: 5px; }
+    .header-right > span { display: none; }   /* hide user name */
+    .avatar { width: 22px; height: 22px; }
+    .btn-sm { padding: 5px 8px; font-size: 11px; }
+    /* hide "Sign out" text, keep button as icon-width */
+    .btn-signout { font-size: 0; padding: 5px 7px; min-width: 28px; justify-content: center; }
+    .btn-signout::before { content: '×'; font-size: 14px; }
+    /* sync dot label hidden */
+    .sync-label { display: none; }
 
-    /* Main */
-    .main { padding: 16px 12px; }
+    /* 2. MAIN padding */
+    .main { padding: 14px 10px; }
 
-    /* Summary — stack vertically */
-    .summary { flex-direction: column; align-items: flex-start; gap: 12px; padding: 14px 16px; }
-    .summary button { width: 100%; justify-content: center; margin-left: 0 !important; }
+    /* 3. SUMMARY — single horizontal strip, no stacking */
+    .summary {
+      flex-direction: row;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 0;
+      padding: 10px 12px;
+      overflow: hidden;
+    }
+    .summary .stat {
+      flex: 1;
+      min-width: 0;
+      border-right: 1px solid ${C.border};
+      padding: 0 10px;
+      text-align: center;
+    }
+    .summary .stat:first-child { padding-left: 0; }
+    .summary .stat:last-child { border-right: none; }
+    .stat .v { font-size: 17px; }
+    .stat .l { font-size: 9px; }
+    /* CSV button — icon only, placed in nav not summary */
+    .summary > button { display: none; }
 
-    /* Tabs */
-    .tab { padding: 8px 12px; font-size: 12px; }
+    /* 4. TABS */
+    .tab { padding: 8px 10px; font-size: 12px; }
 
-    /* Pending cards — single column */
+    /* 5. PENDING cards — single column */
     .pending-grid { grid-template-columns: 1fr; }
 
-    /* Expense rows — collapse 7-col grid to 3-col card */
+    /* 6. EXPENSE ROWS — compact 3-col layout */
     .col-hd { display: none; }
     .exp-row {
-      grid-template-columns: 40px 1fr auto;
+      grid-template-columns: 36px 1fr auto;
       grid-template-rows: auto auto;
-      gap: 6px 10px;
-      padding: 12px 10px;
+      gap: 4px 8px;
+      padding: 10px 8px;
     }
     .exp-row > :nth-child(1) { grid-row: 1 / 3; align-self: center; }
-    .exp-row > :nth-child(2) { grid-column: 2; grid-row: 1; }
-    .exp-row > :nth-child(3) { grid-column: 2; grid-row: 2; font-size: 11px; }
+    .exp-row > :nth-child(2) { grid-column: 2; grid-row: 1; font-size: 13px; }
+    .exp-row > :nth-child(3) { grid-column: 2; grid-row: 2; font-size: 11px; color: ${C.muted}; }
     .exp-row > :nth-child(4) { display: none; }
     .exp-row > :nth-child(5) { grid-column: 3; grid-row: 1; }
-    .exp-row > :nth-child(6) { grid-column: 3; grid-row: 2; font-size: 13px; }
+    .exp-row > :nth-child(6) { grid-column: 3; grid-row: 2; font-size: 13px; font-weight: 600; text-align: right; }
     .exp-row > :nth-child(7) { display: none; }
 
-    /* Form grids — all single column */
+    /* 7. TRIP HEADER — compact two-line treatment */
+    .trip-hd {
+      flex-wrap: wrap;
+      gap: 4px 8px;
+      padding-bottom: 8px;
+    }
+    .trip-year-tag { font-size: 10px; padding: 2px 7px; }
+    .trip-title { font-size: 15px; width: 100%; margin-top: 2px; }
+    .trip-total { margin-left: 0; font-size: 11px; }
+    .trip-hd .btn { padding: 4px 10px; font-size: 11px; }
+
+    /* 8. FORM GRIDS — all single column */
     .g2, .g3, .g4 { grid-template-columns: 1fr; }
 
-    /* Modal — bottom sheet */
+    /* 9. MODAL — bottom sheet */
     .overlay { padding: 0; align-items: flex-end; }
-    .modal { border-radius: 20px 20px 0 0; padding: 20px 16px 32px; max-width: 100%; max-height: 90vh; overflow-y: auto; }
-    .modal-title { font-size: 18px; }
-    .modal-actions { flex-direction: column-reverse; }
+    .modal {
+      border-radius: 20px 20px 0 0;
+      padding: 20px 14px 32px;
+      max-width: 100%;
+      max-height: 92vh;
+      overflow-y: auto;
+    }
+    .modal-title { font-size: 17px; }
+    .modal-actions { flex-direction: column-reverse; gap: 8px; }
     .modal-actions .btn { width: 100%; justify-content: center; }
 
-    /* Login */
-    .login-card { width: 100%; padding: 32px 20px; border-radius: 16px; }
-    .login-title { font-size: 24px; }
+    /* 10. LOGIN */
+    .login-card { width: 100%; padding: 28px 16px; border-radius: 16px; }
+    .login-title { font-size: 22px; }
 
-    /* Choice row */
+    /* 11. CHOICE row (personal split) */
     .choice-row { gap: 6px; }
     .choice { padding: 10px 4px; font-size: 11px; }
 
-    /* Detail grid */
+    /* 12. DETAIL GRID — single column */
     .detail-grid { grid-template-columns: 1fr; }
 
-    /* Toast — bottom */
-    .toast { top: auto; bottom: 16px; right: 12px; left: 12px; max-width: none; }
-
-    /* Trip header */
-    .trip-hd { flex-wrap: wrap; gap: 6px; }
-    .trip-total { margin-left: 0; }
+    /* 13. TOAST — full-width at bottom */
+    .toast { top: auto; bottom: 16px; right: 10px; left: 10px; max-width: none; }
   }
 `;
 
@@ -518,13 +555,13 @@ export default function App() {
         <div className="header-right">
           <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:C.muted}}>
             <div className={`sync-dot${syncing?" busy":""}`}/>
-            {syncing?"Syncing…":"Live"}
+            <span className="sync-label">{syncing?"Syncing…":"Live"}</span>
           </div>
           <a href="https://drive.google.com/drive/search?q=Receipts" target="_blank" rel="noreferrer"
             className="btn btn-ghost btn-sm" title="Open Receipts in Drive">📁 Drive</a>
           <img className="avatar" src={user.avatar} alt=""/>
           <span style={{fontSize:12,color:C.muted}}>{user.name}</span>
-          <a href={`${API}/auth/logout`} className="btn btn-ghost btn-sm">Sign out</a>
+          <a href={`${API}/auth/logout`} className="btn btn-ghost btn-sm btn-signout">Sign out</a>
           <button className="btn btn-accent btn-sm" onClick={exportCSV}>↓ CSV</button>
         </div>
       </div>
