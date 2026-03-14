@@ -523,19 +523,24 @@ Be thorough — hotel folios, restaurant bills, taxi receipts and airline ticket
 
     await env.KV.put(`pending_${file.id}`, JSON.stringify(pending), { expirationTtl: 60 * 60 * 24 * 30 });
 
-    // Instant Pushover notification
-    await pushover(env, {
-      title:   `New receipt — ${normalised.merchant || file.name}`,
-      message: [
-        normalised.amount ? `${normalised.currency || "GBP"} ${normalised.amount}` : null,
-        normalised.date   ? `📅 ${normalised.date}`                                : null,
-        normalised.category,
-        "Tap to triage →",
-      ].filter(Boolean).join("  ·  "),
-      url:       env.FRONTEND_URL + "?tab=pending",
-      url_title: "Open Expense Tracker",
-      priority:  0,
-    });
+    // Instant Pushover — deduplicated per file ID so repeat webhook pings don't spam
+    const notifyKey = `notified_${file.id}`;
+    const alreadyNotified = await env.KV.get(notifyKey);
+    if (!alreadyNotified) {
+      await env.KV.put(notifyKey, "1", { expirationTtl: 60 * 60 * 24 * 30 });
+      await pushover(env, {
+        title:   `New receipt — ${normalised.merchant || file.name}`,
+        message: [
+          normalised.amount   ? `${normalised.currency || "GBP"} ${normalised.amount}` : null,
+          normalised.date     ? `📅 ${normalised.date}`                                : null,
+          normalised.category ? normalised.category                                    : null,
+          "Tap to triage →",
+        ].filter(Boolean).join("  ·  "),
+        url:       env.FRONTEND_URL + "?tab=pending",
+        url_title: "Open Expense Tracker",
+        priority:  0,
+      });
+    }
   }
 
   return new Response("ok");
@@ -628,6 +633,7 @@ async function assignReceipt(request, env) {
   expData.push(expense);
   await env.KV.put(expKey, JSON.stringify(expData), { expirationTtl: SESSION_TTL * 52 });
   await env.KV.delete(`pending_${fileId}`);
+  await env.KV.delete(`notified_${fileId}`);
 
   return ok({ ok: true, expense });
 }
