@@ -24,42 +24,16 @@ const PENDING_FOLDER  = "Pending";           // /receipts/Pending — phone drop
 
 export default {
   async fetch(request, env) {
-    const url  = new URL(request.url);
-    const path = url.pathname;
-
-    // Rate limit
-    const ip  = request.headers.get("CF-Connecting-IP") || "x";
-    const rk  = `rl_${ip}_${Math.floor(Date.now() / 60000)}`;
-    const rct = parseInt(await env.KV.get(rk) || "0") + 1;
-    await env.KV.put(rk, String(rct), { expirationTtl: 120 });
-    if (rct > 120) return new Response("Too many requests", { status: 429 });
-
-    if (request.method === "OPTIONS") {
-      const origin = request.headers.get("Origin") || "https://expenses.funfairlabs.com";
-      return new Response(null, {
-        status: 204,
-        headers: {
-          "Access-Control-Allow-Origin":      origin,
-          "Access-Control-Allow-Credentials": "true",
-          "Access-Control-Allow-Methods":     "GET, POST, OPTIONS",
-          "Access-Control-Allow-Headers":     "Content-Type",
-          "Vary":                             "Origin",
-        },
-      });
-    }
-
-    if (path === "/auth/google")          return googleStart(request, env);
-    if (path === "/auth/google/callback") return googleCallback(request, env);
-    if (path === "/auth/logout")          return logout(request, env);
-    if (path === "/auth/me")              return getMe(request, env);
-    if (path === "/drive/webhook")        return driveWebhook(request, env);
-    if (path === "/api/pending")          return getPending(request, env);
-    if (path === "/api/assign")           return assignReceipt(request, env);
-    if (path === "/api/expenses")         return handleExpenses(request, env);
-    if (path === "/api/subscribe")        return subscribeWebhook(request, env);
-    if (path === "/api/email-trip")       return emailTrip(request, env);
-
-    return new Response("Not found", { status: 404 });
+    const response = await handleRequest(request, env);
+    // Apply CORS to every response — no exceptions
+    const origin = request.headers.get("Origin") || "https://expenses.funfairlabs.com";
+    const h = new Headers(response.headers);
+    h.set("Access-Control-Allow-Origin",      origin);
+    h.set("Access-Control-Allow-Credentials", "true");
+    h.set("Access-Control-Allow-Methods",     "GET, POST, OPTIONS");
+    h.set("Access-Control-Allow-Headers",     "Content-Type");
+    h.set("Vary",                             "Origin");
+    return new Response(response.body, { status: response.status, headers: h });
   },
 
   async scheduled(event, env) {
@@ -67,6 +41,33 @@ export default {
     await pushoverDailyNudge(env);
   },
 };
+
+async function handleRequest(request, env) {
+  const url  = new URL(request.url);
+  const path = url.pathname;
+
+  // Rate limit
+  const ip  = request.headers.get("CF-Connecting-IP") || "x";
+  const rk  = `rl_${ip}_${Math.floor(Date.now() / 60000)}`;
+  const rct = parseInt(await env.KV.get(rk) || "0") + 1;
+  await env.KV.put(rk, String(rct), { expirationTtl: 120 });
+  if (rct > 120) return new Response("Too many requests", { status: 429 });
+
+  if (request.method === "OPTIONS") return new Response(null, { status: 204 });
+
+  if (path === "/auth/google")          return googleStart(request, env);
+  if (path === "/auth/google/callback") return googleCallback(request, env);
+  if (path === "/auth/logout")          return logout(request, env);
+  if (path === "/auth/me")              return getMe(request, env);
+  if (path === "/drive/webhook")        return driveWebhook(request, env);
+  if (path === "/api/pending")          return getPending(request, env);
+  if (path === "/api/assign")           return assignReceipt(request, env);
+  if (path === "/api/expenses")         return handleExpenses(request, env);
+  if (path === "/api/subscribe")        return subscribeWebhook(request, env);
+  if (path === "/api/email-trip")       return emailTrip(request, env);
+
+  return new Response("Not found", { status: 404 });
+}
 
 // ── Google OAuth ───────────────────────────────────────────────────────────
 
@@ -715,18 +716,10 @@ async function emailTrip(request, env) {
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
-function ok(data, status = 200, request = null) {
-  const origin = request?.headers.get("Origin") || "https://expenses.funfairlabs.com";
+function ok(data, status = 200) {
   return new Response(data === null ? null : JSON.stringify(data), {
     status,
-    headers: {
-      "Content-Type":                     "application/json",
-      "Access-Control-Allow-Origin":      origin,
-      "Access-Control-Allow-Credentials": "true",
-      "Access-Control-Allow-Methods":     "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers":     "Content-Type",
-      "Vary":                             "Origin",
-    },
+    headers: { "Content-Type": "application/json" },
   });
 }
 
