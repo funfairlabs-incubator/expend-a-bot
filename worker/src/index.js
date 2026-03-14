@@ -75,6 +75,8 @@ async function handleRequest(request, env) {
   if (path === "/api/email-trip")       return emailTrip(request, env);
   if (path === "/api/delete-pending")   return deletePending(request, env);
   if (path === "/api/delete-expense")   return deleteExpense(request, env);
+  if (path === "/api/archive-trip")     return archiveTrip(request, env);
+  if (path === "/api/archived")         return getArchived(request, env);
 
   return new Response("Not found", { status: 404 });
 }
@@ -789,6 +791,48 @@ async function deleteExpense(request, env) {
   await env.KV.put(key, JSON.stringify(next), { expirationTtl: SESSION_TTL * 52 });
 
   return ok({ ok: true, removed: data.length - next.length });
+}
+
+
+// ── Archive Trip ───────────────────────────────────────────────────────────
+// Moves all expenses for a given year+tripName from the active expenses list
+// into a separate archived list. Drive files are untouched.
+
+async function archiveTrip(request, env) {
+  const { session } = await loadSession(request, env);
+  if (!session) return ok({ error: "unauthenticated" }, 401);
+
+  const { tripName, year } = await request.json();
+  if (!tripName || !year) return ok({ error: "missing fields" }, 400);
+
+  const activeKey   = `expenses_${session.id}`;
+  const archiveKey  = `expenses_archived_${session.id}`;
+
+  const active   = JSON.parse(await env.KV.get(activeKey)  || "[]");
+  const archived = JSON.parse(await env.KV.get(archiveKey) || "[]");
+
+  const toArchive = active.filter(e => e.tripName === tripName && String(e.year) === String(year));
+  const remaining = active.filter(e => !(e.tripName === tripName && String(e.year) === String(year)));
+
+  if (!toArchive.length) return ok({ ok: true, archived: 0 });
+
+  // Stamp each with archivedAt so we can show when it was cleared
+  const stamped = toArchive.map(e => ({ ...e, archivedAt: new Date().toISOString() }));
+
+  await env.KV.put(activeKey,   JSON.stringify(remaining), { expirationTtl: SESSION_TTL * 52 });
+  await env.KV.put(archiveKey,  JSON.stringify([...archived, ...stamped]), { expirationTtl: SESSION_TTL * 52 });
+
+  return ok({ ok: true, archived: stamped.length, remaining: remaining.length });
+}
+
+// ── Get Archived ───────────────────────────────────────────────────────────
+// Returns the full archived expenses list for the current user.
+
+async function getArchived(request, env) {
+  const { session } = await loadSession(request, env);
+  if (!session) return ok({ error: "unauthenticated" }, 401);
+
+  return ok(JSON.parse(await env.KV.get(`expenses_archived_${session.id}`) || "[]"));
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────

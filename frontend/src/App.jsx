@@ -351,6 +351,7 @@ export default function App() {
     if (!user) return;
     fetch(`${API}/api/subscribe`, { method:"POST", credentials:"include" }).catch(()=>{});
     loadData();
+    loadArchived();
     pollRef.current = setInterval(loadPending, 30000);
     return () => clearInterval(pollRef.current);
   }, [user]);
@@ -379,6 +380,32 @@ export default function App() {
     } catch {}
     setExpenses(p => p.filter(x => x.id !== expenseId));
     toast$("Expense deleted");
+  };
+
+    const [archived, setArchived] = useState([]);
+
+  const loadArchived = async () => {
+    try {
+      const r = await fetch(`${API}/api/archived`, { credentials: "include" });
+      const d = await r.json();
+      if (Array.isArray(d)) setArchived(d);
+    } catch {}
+  };
+
+  const archiveTrip = async (tripName, year) => {
+    try {
+      const r = await fetch(`${API}/api/archive-trip`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tripName, year }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setExpenses(p => p.filter(e => !(e.tripName === tripName && String(e.year) === String(year))));
+        await loadArchived();
+        toast$(`✓ "${tripName}" archived (${d.archived} receipt${d.archived !== 1 ? "s" : ""})`);
+      } else toast$(d.error || "Archive failed");
+    } catch { toast$("Network error"); }
   };
 
     const loadPending = async () => {
@@ -583,6 +610,11 @@ export default function App() {
           <div className={`tab${tab==="expenses"?" on":""}`} onClick={()=>setTab("expenses")}>
             📋 Expenses ({expenses.length})
           </div>
+          {archived.length > 0 && (
+            <div className={`tab${tab==="archived"?" on":""}`} onClick={()=>setTab("archived")}>
+              🗄 Done ({archived.length})
+            </div>
+          )}
         </div>
 
         {/* ── Inbox ── */}
@@ -649,6 +681,13 @@ export default function App() {
                         onClick={()=>setEmailModal({tripName:g.name,year:g.year,expenses:g.items})}>
                         ✉️ Email
                       </button>
+                      <button className="btn btn-ghost btn-sm"
+                        style={{borderColor:"transparent",color:C.muted}}
+                        title="Archive this trip — hides it from the main view"
+                        onClick={()=>{
+                          if (window.confirm(`Archive all ${g.items.length} receipt${g.items.length!==1?"s":""} for "${g.name}"?\n\nThey'll move to the Done tab. Drive files are untouched.`))
+                            archiveTrip(g.name, g.year);
+                        }}>🗑</button>
                     </div>
                     <div className="col-hd">
                       <span>File</span><span>Merchant</span><span>Date</span>
@@ -693,6 +732,71 @@ export default function App() {
                   </div>
                 );
               })
+        )}
+
+        {/* ── Archived ── */}
+        {tab==="archived" && (
+          archived.length === 0
+            ? <div className="empty"><div className="empty-ico">🗄</div><div>Nothing archived yet.</div></div>
+            : (() => {
+                const aGrouped = {};
+                archived.forEach(e => {
+                  const k = `${e.year}__${e.tripName||"Unassigned"}`;
+                  if (!aGrouped[k]) aGrouped[k] = { year:e.year, name:e.tripName||"Unassigned", items:[], archivedAt:e.archivedAt };
+                  aGrouped[k].items.push(e);
+                });
+                return Object.entries(aGrouped).map(([k,g]) => {
+                  const gWork = g.items.reduce((s,e)=>s+(parseFloat(e.amount)||0)*(100-(e.personalPct||0))/100, 0);
+                  const archivedDate = g.archivedAt ? new Date(g.archivedAt).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}) : "";
+                  return (
+                    <div className="trip-section" key={k} style={{opacity:0.8}}>
+                      <div className="trip-hd">
+                        <span className="trip-year-tag">{g.year}</span>
+                        <span className="trip-title" style={{color:C.muted}}>🗄 {g.name}</span>
+                        <div className="trip-total"><strong>{fmt(gWork)}</strong> work</div>
+                        {archivedDate && <span style={{fontSize:11,color:C.muted,marginLeft:"auto"}}>Archived {archivedDate}</span>}
+                      </div>
+                      <div className="col-hd">
+                        <span>File</span><span>Merchant</span><span>Date</span>
+                        <span>Payment</span><span>Taxes</span><span>Total</span><span></span>
+                      </div>
+                      {g.items.map(e => (
+                        <div className="exp-row" key={e.id} style={{opacity:0.7}} onClick={()=>setDetail(e)}>
+                          {e.driveLink
+                            ? <a href={e.driveLink} target="_blank" rel="noreferrer"
+                                onClick={ev=>ev.stopPropagation()} style={{display:"flex"}}>
+                                <img className="thumb"
+                                  src={`https://drive.google.com/thumbnail?id=${e.driveFileId}&sz=w80`} alt=""
+                                  onError={ev=>{ev.target.style.display="none";ev.target.nextSibling.style.display="flex"}}/>
+                                <div className="thumb-ph" style={{display:"none"}}>🧾</div>
+                              </a>
+                            : <div className="thumb-ph">🧾</div>
+                          }
+                          <div>
+                            <div style={{fontWeight:500}}>{e.merchant||"—"}</div>
+                            <div style={{fontSize:11,color:C.muted,marginTop:2}}>{e.category}</div>
+                          </div>
+                          <div style={{color:C.muted,fontSize:12}}>{fmtDate(e.date)}</div>
+                          <div style={{fontSize:11}}>
+                            {e.payment_method
+                              ? `${payIcon(e.payment_method)} ${e.payment_method}${e.card_last4?` ···${e.card_last4}`:""}`
+                              : <span style={{color:C.muted}}>—</span>}
+                          </div>
+                          <div>
+                            {e.taxes?.length
+                              ? <span className="tag tg" title={e.taxes.map(t=>t.name).join(", ")}>
+                                  {e.taxes.length>1?`${e.taxes.length} taxes`:e.taxes[0].name}
+                                </span>
+                              : <span className="tag tn">None</span>}
+                          </div>
+                          <div style={{fontWeight:600}}>{fmt(e.amount,e.currency)}</div>
+                          <div/>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                });
+              })()
         )}
       </div>
 
